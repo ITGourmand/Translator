@@ -6,8 +6,8 @@ let userProfile = null;
 // Variables d'état chirurgicales (Plus de tableau saturé en mémoire !)
 let totalLinesCount = 0;       
 let currentSequenceOrder = 1; // Index linéaire réel de la ligne active (1-based)
-let activeLineRef = null;     // Référence complète de la ligne active chargée ({id, msgid, is_locked...})
-
+let activeLineRef = null;
+let userPendingProposalRef = null;
 
 let currentLanguage = 'FR';
 
@@ -261,6 +261,9 @@ async function toggleLineLock() {
 async function fetchAndRenderProposals(lineId) {
     const listContainer = document.getElementById('proposals-list');
     const titleCount = document.getElementById('proposals-title-count');
+    const textarea = document.getElementById('proposal-textarea');
+    const submitBtn = document.getElementById('submit-proposal-btn');
+    const actionsContainer = document.getElementById('form-actions-container');
 
     const { data: proposals, error } = await supabaseClient
         .from('proposals')
@@ -276,8 +279,37 @@ async function fetchAndRenderProposals(lineId) {
 
     const isLocked = activeLineRef?.locked_languages?.includes(currentLanguage) || false;
     const hasApproved = proposals.some(p => p.status === 'approved');
+    const myPending = proposals.find(p => p.user_id === currentUser.id && p.status === 'pending');
+    let deleteBtn = document.getElementById('delete-proposal-btn');
 
-    // Filtrage chirurgical demandé : Si locked + validé, on ne garde QUE le validé
+    if (myPending && !isLocked) {
+        userPendingProposalRef = myPending;
+        submitBtn.textContent = "Modifier ma proposition";
+        submitBtn.className = "bg-brandCyan-600 hover:bg-brandCyan-700 text-white font-medium text-xs px-5 py-3 rounded-xl shadow transition tracking-wide";
+        
+        if (!textarea.value.trim()) {
+            textarea.value = myPending.msgstr;
+        }
+        if (!deleteBtn && actionsContainer) {
+            deleteBtn = document.createElement('button');
+            deleteBtn.id = 'delete-proposal-btn';
+            deleteBtn.type = 'button';
+            deleteBtn.onclick = handleDeleteProposal;
+            deleteBtn.className = "bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-medium text-xs px-5 py-3 rounded-xl transition tracking-wide";
+            deleteBtn.textContent = "Supprimer";
+            actionsContainer.insertBefore(deleteBtn, submitBtn);
+        }
+    } else {
+        userPendingProposalRef = null;
+
+        if (deleteBtn) deleteBtn.remove();
+
+        if (!isLocked) {
+            submitBtn.textContent = "Submit Translation";
+            submitBtn.className = "bg-brandGreen-700 hover:bg-brandGreen-800 text-white font-medium text-xs px-5 py-3 rounded-xl shadow transition tracking-wide";
+        }
+    }
+
     let proposalsToRender = proposals;
     if (isLocked && hasApproved) {
         proposalsToRender = proposals.filter(p => p.status === 'approved');
@@ -289,7 +321,7 @@ async function fetchAndRenderProposals(lineId) {
     listContainer.innerHTML = "";
 
     if (proposalsToRender.length === 0) {
-        listContainer.innerHTML = `<p class="text-xs text-slate-400 italic">No alternative proposals registered yet.</p>`;
+        listContainer.innerHTML = `<p class="text-xs text-stone-400 italic">No alternative proposals registered yet.</p>`;
         return;
     }
 
@@ -305,22 +337,36 @@ async function fetchAndRenderProposals(lineId) {
         if (prop.status === 'approved') badgeStyle = "bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold";
         if (prop.status === 'rejected') badgeStyle = "bg-red-100 text-red-800 border border-red-200";
 
-        // Style grisé si la ligne globale est verrouillée
         const lockedVisualClass = isLocked ? 'opacity-60 bg-slate-50' : 'bg-white';
 
         const item = document.createElement('div');
         item.className = `p-3 rounded-xl border transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${prop.status === 'approved' ? 'border-emerald-500 bg-emerald-50/20 shadow-xs' : 'border-slate-200'} ${lockedVisualClass}`;
         
-        let actionsHtml = "";
-        // On affiche les actions de modération UNIQUEMENT si la ligne n'est pas encore locked
-        if (isReviewerOrAdmin && !isLocked) {
-            actionsHtml = `
-                <div class="flex gap-1.5 self-end sm:self-center">
-                    ${prop.status !== 'approved' ? `<button onclick="alterProposalStatus(${prop.id}, 'approved')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2 py-1 rounded shadow-sm transition">Approve</button>` : ''}
-                    ${prop.status !== 'rejected' ? `<button onclick="alterProposalStatus(${prop.id}, 'rejected')" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[10px] px-2 py-1 rounded transition">Reject</button>` : ''}
-                </div>
-            `;
+        // --- BLOC D'ACTIONS DES CARTES CONFIGURÉ ---
+        let actionButtons = [];
+        const isOwner = prop.user_id === currentUser.id;
+
+        if (!isLocked) {
+            // Droits Reviewer / Admin
+            if (isReviewerOrAdmin) {
+                if (prop.status !== 'approved') {
+                    actionButtons.push(`<button onclick="alterProposalStatus(${prop.id}, 'approved')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2 py-1 rounded shadow-sm transition">Approve</button>`);
+                }
+                if (prop.status !== 'rejected') {
+                    actionButtons.push(`<button onclick="alterProposalStatus(${prop.id}, 'rejected')" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[10px] px-2 py-1 rounded transition">Reject</button>`);
+                }
+            }
+            // Droit Propriétaire : Supprimer sa propre proposition si elle est en attente
+            if (isOwner && prop.status === 'pending') {
+                actionButtons.push(`<button onclick="handleDeleteProposal()" class="bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[10px] px-2 py-1 rounded transition border border-red-200">Supprimer</button>`);
+            }
         }
+
+        let actionsHtml = "";
+        if (actionButtons.length > 0) {
+            actionsHtml = `<div class="flex gap-1.5 self-end sm:self-center">${actionButtons.join('')}</div>`;
+        }
+        // --------------------------------------------
 
         item.innerHTML = `
             <div class="space-y-1 max-w-xl w-full">
@@ -336,6 +382,38 @@ async function fetchAndRenderProposals(lineId) {
         `;
         listContainer.appendChild(item);
     });
+}
+
+async function handleDeleteProposal() {
+    if (!userPendingProposalRef) return;
+
+    const confirmation = confirm("Voulez-vous vraiment supprimer votre proposition en attente ?");
+    if (!confirmation) return;
+
+    const deleteBtn = document.getElementById('delete-proposal-btn');
+    const submitBtn = document.getElementById('submit-proposal-btn');
+    
+    if (deleteBtn) deleteBtn.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
+
+    const { error } = await supabaseClient
+        .from('proposals')
+        .delete()
+        .eq('id', userPendingProposalRef.id);
+
+    if (error) {
+        showToast("Error", "Impossible de supprimer la proposition : " + error.message, "error");
+        if (deleteBtn) deleteBtn.disabled = false;
+        if (submitBtn) submitBtn.disabled = false;
+    } else {
+        showToast("Success", "Votre proposition a été supprimée.", "success");
+        
+        // On vide le textarea puisque la proposition n'existe plus
+        document.getElementById('proposal-textarea').value = "";
+        
+        // Rafraîchissement global (l'index unique SQL et JS va réinitialiser les boutons à l'état initial)
+        await refreshCarouselWorkspace();
+    }
 }
 
 // Soumission des propositions
@@ -354,23 +432,38 @@ async function handleProposalSubmission(event) {
 
     submitBtn.disabled = true;
 
-    const { error } = await supabaseClient
-        .from('proposals')
-        .insert({
-            line_id: activeLineRef.id,
-            user_id: currentUser.id,
-            msgstr: targetStringValue,
-            language: currentLanguage,
-            status: 'pending'
-        });
+    if (userPendingProposalRef) {
+        const { error } = await supabaseClient
+            .from('proposals')
+            .update({ msgstr: targetStringValue })
+            .eq('id', userPendingProposalRef.id);
 
-    if (error) {
-        showToast("Submission Rejected", error.message, "error");
-        submitBtn.disabled = false;
+        if (error) {
+            showToast("Modification Rejected", error.message, "error");
+            submitBtn.disabled = false;
+        } else {
+            showToast("Success", "Translation proposal updated.", "success");
+            await refreshCarouselWorkspace();
+        }
     } else {
-        showToast("Success", "Translation proposal recorded.", "success");
-        textInput.value = "";
-        await refreshCarouselWorkspace();
+        const { error } = await supabaseClient
+            .from('proposals')
+            .insert({
+                line_id: activeLineRef.id,
+                user_id: currentUser.id,
+                msgstr: targetStringValue,
+                language: currentLanguage,
+                status: 'pending'
+            });
+
+        if (error) {
+            showToast("Submission Rejected", error.message, "error");
+            submitBtn.disabled = false;
+        } else {
+            showToast("Success", "Translation proposal recorded.", "success");
+            textInput.value = "";
+            await refreshCarouselWorkspace();
+        }
     }
 }
 
