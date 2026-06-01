@@ -53,12 +53,35 @@ async function fetchAndRenderProfile() {
     
     const badge = document.getElementById('profile-role-badge');
     badge.textContent = profile.role;
+    
+    const redeemBlock = document.getElementById('redeem-key-block');
+    const createBlock = document.getElementById('create-key-block');
+    const roleSelect = document.getElementById('create-key-role');
     if (profile.role === 'superadmin' || profile.role === 'admin') {
         badge.className = "mt-1 px-3 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-cyan-100 text-cyan-800 border border-cyan-200";
-    } else if (profile.role === 'reviewer') {
-        badge.className = "mt-1 px-3 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200";
+
+        redeemBlock.classList.add('hidden');
+        createBlock.classList.remove('hidden');
+        
+        roleSelect.innerHTML = '';
+        if (profile.role === 'superadmin') {
+            roleSelect.innerHTML = `
+                <option value="admin">Admin</option>
+                <option value="reviewer">Reviewer</option>
+            `;
+        } else if (profile.role === 'admin') {
+            roleSelect.innerHTML = `
+                <option value="reviewer">Reviewer</option>
+            `;
+        }
     } else {
-        badge.className = "mt-1 px-3 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200";
+        if (profile.role === 'reviewer') {
+            badge.className = "mt-1 px-3 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200";
+        } else {
+            badge.className = "mt-1 px-3 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200";
+        }
+        redeemBlock.classList.remove('hidden');
+        createBlock.classList.add('hidden');
     }
 
     if (profile.avatar_url) {
@@ -66,6 +89,63 @@ async function fetchAndRenderProfile() {
     } else {
         document.getElementById('profile-avatar').src = `https://api.dicebear.com/7.x/initials/svg?seed=${profile.username}`;
     }
+}
+
+async function generatePromoKey() {
+    const roleToGrant = document.getElementById('create-key-role').value;
+    const container = document.getElementById('generated-key-container');
+    const keyText = document.getElementById('generated-key-text');
+    const copyBtn = document.getElementById('copy-key-btn');
+
+    showToast("Processing", "Generating secure access token...", "info");
+    if (container) container.classList.add('hidden');
+
+    const { data: generatedCode, error } = await supabaseClient
+        .rpc('generate_promotion_key', { 
+            p_role_to_grant: roleToGrant 
+        });
+
+    if (error) {
+        showToast("Generation Failure", error.message, "error");
+    } else {
+        if (keyText) keyText.textContent = generatedCode;
+        if (copyBtn) {
+            copyBtn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                </svg>
+                Copy
+            `;
+            copyBtn.disabled = false;
+        }
+
+        if (container) container.classList.remove('hidden');
+        
+        showToast("Key Created", `Token generated successfully for ${roleToGrant}!`, "success");
+    }
+}
+
+function copyGeneratedKey() {
+    const keyText = document.getElementById('generated-key-text');
+    const copyBtn = document.getElementById('copy-key-btn');
+    
+    if (!keyText || !keyText.textContent) return;
+
+    navigator.clipboard.writeText(keyText.textContent)
+        .then(() => {
+            showToast("Copied", "Token copied to clipboard!", "success");
+            if (copyBtn) {
+                copyBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span class="text-emerald-600 font-bold">Copied!</span>
+                `;
+            }
+        })
+        .catch(err => {
+            showToast("Copy Error", "Could not copy token automatically.", "error");
+        });
 }
 
 async function updateProfileInfo(event) {

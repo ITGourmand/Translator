@@ -113,7 +113,7 @@ async function fetchAndRenderProjects() {
                 </p>
             </div>
             <div class="pt-2 border-t border-slate-100 flex justify-end">
-                <a href="translate.html?project_id=${project.id}" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2 rounded-lg shadow-sm transition">
+                <a href="workspace.html?project_id=${project.id}" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2 rounded-lg shadow-sm transition">
                     Open Focus Hub
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />

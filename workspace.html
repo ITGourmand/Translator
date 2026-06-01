@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Focus Workspace - Translator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="js/supabase-client.js" defer></script>
+    <script src="js/translation-hub.js" defer></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        offWhite: '#f9f8f4',
+                        brandGreen: {
+                            50: '#f0f7f4',
+                            600: '#115e3b',
+                            700: '#0b462e',
+                            800: '#062d1e',
+                        },
+                        brandCyan: {
+                            50: '#ecfeff',
+                            200: '#a5f3fc',
+                            500: '#06b6d4',
+                            600: '#0891b2',
+                            700: '#0e7490'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-offWhite text-stone-800 min-h-screen font-sans flex flex-col">
+
+    <nav class="bg-white border-b border-stone-200/60 sticky top-0 z-40 shadow-xs">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <a href="index.html" class="flex items-center space-x-2">
+                    <span class="h-2.5 w-2.5 rounded-full bg-brandCyan-500"></span>
+                    <span class="text-xl font-bold text-brandGreen-700 tracking-tight">Translator</span>
+                </a>
+                <span class="text-stone-300">/</span>
+                <span id="nav-project-name" class="text-xs font-bold text-stone-400 uppercase tracking-wider truncate max-w-[200px] sm:max-w-sm">Loading Project...</span>
+            </div>
+            <div class="flex items-center space-x-6">
+                <a href="index.html" class="text-sm font-medium text-stone-500 hover:text-brandGreen-700 transition">Dashboard</a>
+                <a href="profile.html" class="text-sm font-medium text-stone-500 hover:text-brandGreen-700 transition">My Profile</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Sub-navigation interface control layer -->
+    <div class="bg-white border-b border-stone-200/40 py-3">
+        <div class="container mx-auto px-6 max-w-4xl flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <span class="text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest">Go to line:</span>
+                <div class="flex items-center bg-offWhite border border-stone-200 rounded-xl px-3 py-1.5">
+                    <input type="number" id="direct-line-input" min="1" value="1" class="w-10 bg-transparent text-center font-bold text-sm text-brandGreen-800 focus:outline-none">
+                    <span class="text-stone-300 text-xs px-1.5">/</span>
+                    <span id="total-lines-badge" class="text-stone-400 text-xs font-bold">0</span>
+                </div>
+                <button onclick="handleDirectLineJump()" class="bg-brandGreen-700 hover:bg-brandGreen-800 text-white text-xs font-medium px-4 py-2 rounded-xl transition shadow-xs">Jump</button>
+            </div>
+            
+            <!-- 10% Cyan targeted directly on progress metrics -->
+            <div class="w-full sm:w-64 flex items-center space-x-3">
+                <div class="w-full bg-stone-100 h-1.5 rounded-full overflow-hidden">
+                    <div id="project-progress-bar" class="bg-brandCyan-500 h-full w-0 transition-all duration-500"></div>
+                </div>
+                <span id="project-progress-text" class="text-xs font-bold text-brandCyan-700 whitespace-nowrap">0% Done</span>
+            </div>
+        </div>
+    </div>
+
+    <main class="flex-1 container mx-auto px-6 py-8 max-w-4xl flex flex-col justify-center">
+        
+        <div id="carousel-container" class="space-y-4 relative">
+            
+            <!-- Upper Peripheral Card Context (Low emphasis) -->
+            <div id="card-prev" class="focus-carousel-card line-card-context bg-white/70 p-4 rounded-xl border border-stone-200/40">
+                <div class="text-[10px] font-mono font-bold text-stone-400 uppercase tracking-wider mb-1">Line <span id="card-prev-num">-</span> (Context)</div>
+                <p id="card-prev-text" class="text-stone-400 text-xs italic truncate">No upper record context.</p>
+            </div>
+
+            <!-- ACTIVE FOCUS CARD (10% Cyan Glow boundary wrapper) -->
+            <div id="card-active" class="focus-carousel-card line-card-active bg-white p-8 rounded-2xl border-2 border-brandCyan-500 relative shadow-xl shadow-cyan-500/[0.02]">
+                
+                <div class="mb-5 flex items-center gap-4 border-b border-stone-100 pb-4">
+                    <span class="text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest">Target language</span>
+                    <select id="target-language-select" onchange="handleLanguageChange()" class="bg-offWhite border border-stone-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-brandGreen-700 focus:outline-none focus:ring-2 focus:ring-brandCyan-500">
+                        <option value="FR">🇫🇷 French (FR)</option>
+                        <option value="ES">🇪🇸 Spanish (ES)</option>
+                        <option value="EN">🇬🇧 English (EN)</option>
+                        <option value="DE">🇩🇪 German (DE)</option>
+                    </select>
+                </div>
+
+                <div class="absolute top-6 right-8 flex items-center gap-2">
+                    <div id="lock-control-container"></div>
+                    <div class="bg-brandCyan-50 text-brandCyan-700 text-[10px] font-bold px-3 py-1 rounded-lg border border-brandCyan-200/50 uppercase tracking-wider">
+                        Active Focus: Line <span id="card-active-num">0</span>
+                    </div>
+                </div>
+                
+                <div class="mb-6">
+                    <span class="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">Original Source String (msgid)</span>
+                    <div class="bg-brandGreen-800 text-offWhite p-5 rounded-xl font-mono text-xs leading-relaxed break-words shadow-inner whitespace-pre-wrap select-text selection:bg-brandCyan-500 selection:text-white" id="card-active-msgid">
+                        Loading sequence matrix lines context...
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <span class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-2.5" id="proposals-title-count">Active Proposals (0)</span>
+                    <div id="proposals-list" class="space-y-2 max-h-40 overflow-y-auto pr-1 proposals-scrollbar">
+                        <p class="text-xs text-stone-400 italic">No alternative proposals registered yet.</p>
+                    </div>
+                </div>
+
+                <div class="pt-5 border-t border-stone-100">
+                    <form id="proposal-form" onsubmit="handleProposalSubmission(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-2">Propose Your Translation Version (msgstr)</label>
+                            <textarea id="proposal-textarea" required rows="3" placeholder="Type your translation alternative here..." class="w-full bg-offWhite border border-stone-200 rounded-xl p-4 text-xs text-brandGreen-800 focus:outline-none focus:ring-2 focus:ring-brandCyan-500 transition placeholder:text-stone-300 font-mono leading-relaxed"></textarea>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-stone-400 text-[10px] tracking-wide flex items-center gap-1">
+                                <kbd class="px-1.5 py-0.5 bg-stone-100 border border-stone-200 rounded font-mono shadow-xs">Ctrl</kbd> + <kbd class="px-1.5 py-0.5 bg-stone-100 border border-stone-200 rounded font-mono shadow-xs">Enter</kbd> to submit
+                            </span>
+                            <button type="submit" id="submit-proposal-btn" class="bg-brandGreen-700 hover:bg-brandGreen-800 text-white font-medium text-xs px-5 py-3 rounded-xl shadow transition tracking-wide">
+                                Submit Translation
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+            </div>
+
+            <!-- Lower Peripheral Card Context -->
+            <div id="card-next" class="focus-carousel-card line-card-context bg-white/70 p-4 rounded-xl border border-stone-200/40">
+                <div class="text-[10px] font-mono font-bold text-stone-400 uppercase tracking-wider mb-1">Line <span id="card-next-num">-</span> (Context)</div>
+                <p id="card-next-text" class="text-stone-400 text-xs italic truncate">No lower record context.</p>
+            </div>
+
+        </div>
+
+        <!-- Navigation utilities -->
+        <div class="mt-8 flex flex-wrap gap-3 justify-between items-center">
+            <div class="flex gap-3">
+                <button onclick="navigateLine(-1)" id="btn-prev-line" class="inline-flex items-center bg-white border border-stone-200 hover:bg-offWhite text-brandGreen-700 font-medium text-xs px-5 py-3 rounded-xl transition shadow-xs">
+                    ← Previous Line
+                </button>
+                <button onclick="navigateLine(1)" id="btn-next-line" class="inline-flex items-center bg-white border border-stone-200 hover:bg-offWhite text-brandGreen-700 font-medium text-xs px-5 py-3 rounded-xl transition shadow-xs">
+                    Next Line →
+                </button>
+            </div>
+
+            <button onclick="jumpToNextUntranslated()" class="inline-flex items-center bg-brandCyan-600 hover:bg-brandCyan-700 text-white font-semibold text-xs px-5 py-3 rounded-xl shadow transition gap-2 tracking-wide">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+                Skip to Next Untranslated
+            </button>
+        </div>
+
+    </main>
+
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2 max-w-sm w-full"></div>
+</body>
+</html>

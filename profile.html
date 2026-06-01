@@ -8,29 +8,49 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase-client.js" defer></script>
     <script src="js/profile-manager.js" defer></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        offWhite: '#f9f8f4',
+                        brandGreen: {
+                            50: '#f0f7f4',
+                            600: '#115e3b',
+                            700: '#0b462e',
+                            800: '#062d1e',
+                        },
+                        brandCyan: {
+                            500: '#06b6d4',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen font-sans">
+<body class="bg-offWhite text-stone-800 min-h-screen font-sans">
     
-    <nav class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
-        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+    <nav class="bg-white border-b border-stone-200/60 sticky top-0 z-40 shadow-xs">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
             <div class="flex items-center space-x-2">
-                <span class="h-3 w-3 rounded-full bg-cyan-500"></span>
-                <span class="text-xl font-bold text-slate-900 tracking-tight">Translator</span>
+                <span class="h-2.5 w-2.5 rounded-full bg-brandCyan-500"></span>
+                <span class="text-xl font-bold text-brandGreen-700 tracking-tight">Translator</span>
             </div>
             <div class="flex items-center space-x-4">
-                <a href="index.html" class="text-sm font-medium text-slate-600 hover:text-emerald-600 transition">Dashboard</a>
+                <a href="index.html" class="text-sm font-medium text-stone-500 hover:text-brandGreen-700 transition">Dashboard</a>
                 <button onclick="logout()" class="text-sm font-medium text-red-600 hover:text-red-700 transition">Logout</button>
             </div>
         </div>
     </nav>
 
-    <main class="container mx-auto px-4 py-8 max-w-4xl">
+    <main class="container mx-auto px-6 py-10 max-w-4xl">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
             
-            <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
+            <div class="bg-white p-8 rounded-2xl border border-stone-200/60 shadow-xs flex flex-col items-center text-center">
                 <div class="relative group mb-4">
-                    <img id="profile-avatar" src="https://api.dicebear.com/7.x/initials/svg?seed=User" alt="Avatar" class="w-28 h-28 rounded-full border-4 border-white shadow-md object-cover bg-slate-100">
-                    <label for="avatar-upload" class="absolute bottom-0 right-0 bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-full cursor-pointer shadow transition border-2 border-white">
+                    <img id="profile-avatar" src="https://api.dicebear.com/7.x/initials/svg?seed=User" alt="Avatar" class="w-28 h-28 rounded-full border-4 border-offWhite shadow-md object-cover bg-offWhite">
+                    <label for="avatar-upload" class="absolute bottom-0 right-0 bg-brandGreen-700 hover:bg-brandGreen-800 text-white p-2.5 rounded-full cursor-pointer shadow-md transition border-2 border-white">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -39,47 +59,77 @@
                     <input type="file" id="avatar-upload" accept="image/*" class="hidden" onchange="uploadAvatar()">
                 </div>
                 
-                <h2 id="profile-username-display" class="text-xl font-bold text-slate-900">Loading...</h2>
-                <span id="profile-role-badge" class="mt-1 px-3 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
+                <h2 id="profile-username-display" class="text-lg font-bold text-brandGreen-800 tracking-tight">Loading...</h2>
+                <span id="profile-role-badge" class="mt-2 px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-brandGreen-50 text-brandGreen-700 border border-brandGreen-100">
                     Translator
                 </span>
-                <p class="text-xs text-slate-400 mt-4 italic">Click the camera icon to upload a profile photo via Supabase Storage.</p>
             </div>
 
             <div class="md:col-span-2 space-y-6">
                 
-                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
-                    <div class="absolute top-0 left-0 right-0 h-1 bg-emerald-600"></div>
-                    <h3 class="text-lg font-bold text-slate-900 mb-4">Account Settings</h3>
+                <div class="bg-white p-8 rounded-2xl border border-stone-200/60 shadow-xs relative overflow-hidden">
+                    <div class="absolute top-0 left-0 right-0 h-1 bg-brandGreen-700"></div>
+                    <h3 class="text-base font-bold text-brandGreen-800 mb-4 tracking-tight">Account Settings</h3>
                     
                     <form onsubmit="updateProfileInfo(event)" class="space-y-4">
                         <div>
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Modify Username</label>
-                            <input type="text" id="settings-username" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition">
+                            <label class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-1.5">Modify Username</label>
+                            <input type="text" id="settings-username" required class="w-full bg-offWhite border border-stone-200 rounded-xl p-3 text-brandGreen-800 focus:outline-none focus:ring-2 focus:ring-brandCyan-500 transition">
                         </div>
-                        <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm px-4 py-2.5 rounded-lg shadow transition">
+                        <button type="submit" class="bg-brandGreen-700 hover:bg-brandGreen-800 text-white font-medium text-xs px-5 py-3 rounded-xl shadow transition tracking-wide">
                             Save Changes
                         </button>
                     </form>
                 </div>
 
-                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
-                    <div class="absolute top-0 left-0 right-0 h-1 bg-cyan-500"></div>
-                    <h3 class="text-lg font-bold text-slate-900 mb-2">Redeem Access Key</h3>
-                    <p class="text-slate-500 text-xs mb-4">Got an invitation token? Enter it here to promote your account permissions to Reviewer or Admin instantly.</p>
+                <div id="promo-key-section" class="bg-white p-8 rounded-2xl border border-stone-200/60 shadow-xs relative overflow-hidden">
+                    <div class="absolute top-0 left-0 right-0 h-1 bg-brandCyan-500"></div>
                     
-                    <div class="flex gap-2">
-                        <input type="text" id="promo-key-input" placeholder="Paste single-use secure key token" class="flex-1 bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition font-mono">
-                        <button onclick="redeemPromoKey()" class="bg-slate-900 hover:bg-slate-800 text-white font-medium text-sm px-5 py-2.5 rounded-lg shadow transition whitespace-nowrap">
-                            Activate Key
-                        </button>
+                    <div id="redeem-key-block">
+                        <h3 class="text-base font-bold text-brandGreen-800 mb-1 tracking-tight">Redeem Access Key</h3>
+                        <p class="text-stone-400 text-xs mb-4">Got an invitation token? Enter it here to promote your account.</p>
+                        
+                        <div class="flex gap-3">
+                            <input type="text" id="promo-key-input" placeholder="Paste token" class="flex-1 bg-offWhite border border-stone-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brandCyan-500 font-mono">
+                            <button onclick="redeemPromoKey()" class="bg-brandGreen-800 hover:bg-brandGreen-700 text-white font-medium text-xs px-5 py-3 rounded-xl shadow transition tracking-wide">
+                                Activate Key
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="create-key-block" class="hidden">
+                        <h3 class="text-base font-bold text-brandGreen-800 mb-1 tracking-tight">Create Access Key</h3>
+                        <p class="text-stone-400 text-xs mb-4">Select a role to generate a secure invitation token for a new team member.</p>
+                        
+                        <div class="flex flex-col sm:flex-row gap-3 items-center">
+                            <div class="w-full sm:w-48">
+                                <select id="create-key-role" class="w-full bg-offWhite border border-stone-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brandCyan-500 text-brandGreen-700 font-bold">
+                                    </select>
+                            </div>
+                            <button onclick="generatePromoKey()" class="w-full sm:w-auto bg-brandGreen-700 hover:bg-brandGreen-800 text-white font-semibold text-xs px-6 py-3.5 rounded-xl shadow transition tracking-wide whitespace-nowrap">
+                                Generate Key
+                            </button>
+                        </div>
+
+                        <div id="generated-key-container" class="hidden mt-5 bg-cyan-50/40 border border-cyan-100 p-4 rounded-xl flex items-center justify-between transition-all duration-300">
+                            <div class="flex flex-col">
+                                <span class="text-[10px] font-bold text-brandCyan-600 uppercase tracking-widest mb-0.5">Generated Token</span>
+                                <span id="generated-key-text" class="font-mono text-base font-bold text-brandGreen-800 tracking-wider select-all">REV-XXXXXXXX</span>
+                            </div>
+                            <button onclick="copyGeneratedKey()" id="copy-key-btn" class="inline-flex items-center gap-1.5 bg-white border border-stone-200 hover:bg-stone-50 text-stone-600 active:text-brandGreen-700 font-medium text-xs px-3 py-2 rounded-lg transition shadow-xs">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                </svg>
+                                Copy
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div class="bg-white p-6 rounded-xl border border-red-200 shadow-sm bg-red-50/30">
-                    <h3 class="text-lg font-bold text-red-600 mb-1">Danger Zone</h3>
-                    <p class="text-slate-500 text-xs mb-4">Permanently destroy your credentials, profile history, and active project proposal links. This is irreversible.</p>
-                    <button onclick="deleteAccount()" class="bg-red-600 hover:bg-red-700 text-white font-medium text-sm px-4 py-2.5 rounded-lg shadow transition">
+                <div class="bg-white p-8 rounded-2xl border border-red-100 bg-red-50/10">
+                    <h3 class="text-base font-bold text-red-700 mb-1 tracking-tight">Danger Zone</h3>
+                    <p class="text-stone-400 text-xs mb-4">Permanently destroy your credentials. This process is completely irreversible.</p>
+                    <button onclick="deleteAccount()" class="bg-red-600 hover:bg-red-700 text-white font-medium text-xs px-4 py-2.5 rounded-xl transition">
                         Delete Account Permanently
                     </button>
                 </div>

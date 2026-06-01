@@ -2,46 +2,48 @@
 
 /* Custom smooth transitions for Focus UI workspace transition cards */
 .focus-carousel-card {
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
     will-change: transform, opacity;
 }
 
-/* 40% Opacity and scale down for peripheral contexts (N-1, N+1) */
+/* 40% Opacity and scale down for peripheral contexts */
 .line-card-context {
-    opacity: 0.40;
-    transform: scale(0.96);
+    opacity: 0.45;
+    transform: scale(0.97);
     pointer-events: none;
     user-select: none;
+    background-color: rgba(255, 255, 255, 0.6);
 }
 
 /* Active workspace selection styling (Line N) */
 .line-card-active {
     opacity: 1;
     transform: scale(1);
-    box-shadow: 0 20px 25px -5px rgba(6, 182, 212, 0.08), 0 10px 10px -5px rgba(6, 182, 212, 0.04);
+    box-shadow: 0 20px 40px -15px rgba(6, 182, 212, 0.12), 0 10px 20px -10px rgba(11, 70, 46, 0.05);
 }
 
 /* Custom scrolling mechanics for the proposals list wrapper */
 .proposals-scrollbar::-webkit-scrollbar {
-    width: 6px;
+    width: 5px;
 }
 .proposals-scrollbar::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 4px;
+    background: #f4f3ee;
+    border-radius: 10px;
 }
 .proposals-scrollbar::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 4px;
+    background: #0b462e;
+    border-radius: 10px;
+    opacity: 0.3;
 }
 .proposals-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+    background: #06b6d4;
 }
 
 /* Subtle pulse for focus indicators */
 @keyframes focusPulse {
-    0%, 100% { border-color: rgba(6, 182, 212, 1); }
-    50% { border-color: rgba(6, 182, 212, 0.4); }
+    0%, 100% { border-color: rgba(6, 182, 212, 1); box-shadow: 0 0 0 0px rgba(6, 182, 212, 0.2); }
+    50% { border-color: rgba(6, 182, 212, 0.4); box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.1); }
 }
 .pulse-focus-border {
-    animation: focusPulse 2s infinite;
+    animation: focusPulse 2.5s infinite ease-in-out;
 }
