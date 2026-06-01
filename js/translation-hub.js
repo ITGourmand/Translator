@@ -284,7 +284,7 @@ async function fetchAndRenderProposals(lineId) {
 
     if (myPending && !isLocked) {
         userPendingProposalRef = myPending;
-        submitBtn.textContent = "Modifier ma proposition";
+        submitBtn.textContent = "Edit proposal";
         submitBtn.className = "bg-brandCyan-600 hover:bg-brandCyan-700 text-white font-medium text-xs px-5 py-3 rounded-xl shadow transition tracking-wide";
         
         if (!textarea.value.trim()) {
@@ -296,7 +296,7 @@ async function fetchAndRenderProposals(lineId) {
             deleteBtn.type = 'button';
             deleteBtn.onclick = handleDeleteProposal;
             deleteBtn.className = "bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-medium text-xs px-5 py-3 rounded-xl transition tracking-wide";
-            deleteBtn.textContent = "Supprimer";
+            deleteBtn.textContent = "Delete";
             actionsContainer.insertBefore(deleteBtn, submitBtn);
         }
     } else {
@@ -356,9 +356,9 @@ async function fetchAndRenderProposals(lineId) {
                     actionButtons.push(`<button onclick="alterProposalStatus(${prop.id}, 'rejected')" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[10px] px-2 py-1 rounded transition">Reject</button>`);
                 }
             }
-            // Droit Propriétaire : Supprimer sa propre proposition si elle est en attente
+            
             if (isOwner && prop.status === 'pending') {
-                actionButtons.push(`<button onclick="handleDeleteProposal()" class="bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[10px] px-2 py-1 rounded transition border border-red-200">Supprimer</button>`);
+                actionButtons.push(`<button onclick="handleDeleteProposal()" class="bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[10px] px-2 py-1 rounded transition border border-red-200">Delete</button>`);
             }
         }
 
@@ -387,7 +387,7 @@ async function fetchAndRenderProposals(lineId) {
 async function handleDeleteProposal() {
     if (!userPendingProposalRef) return;
 
-    const confirmation = confirm("Voulez-vous vraiment supprimer votre proposition en attente ?");
+    const confirmation = confirm("Do you really want to delete your pending proposal?");
     if (!confirmation) return;
 
     const deleteBtn = document.getElementById('delete-proposal-btn');
@@ -402,16 +402,13 @@ async function handleDeleteProposal() {
         .eq('id', userPendingProposalRef.id);
 
     if (error) {
-        showToast("Error", "Impossible de supprimer la proposition : " + error.message, "error");
+        showToast("Error", "Unable to delete the proposal:" + error.message, "error");
         if (deleteBtn) deleteBtn.disabled = false;
         if (submitBtn) submitBtn.disabled = false;
     } else {
-        showToast("Success", "Votre proposition a été supprimée.", "success");
+        showToast("Success", "Your suggestion has been deleted.", "success");
         
-        // On vide le textarea puisque la proposition n'existe plus
         document.getElementById('proposal-textarea').value = "";
-        
-        // Rafraîchissement global (l'index unique SQL et JS va réinitialiser les boutons à l'état initial)
         await refreshCarouselWorkspace();
     }
 }
