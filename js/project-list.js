@@ -1,4 +1,4 @@
-// project-list.js
+
 let currentUser = null;
 let currentUserProfile = null;
 
@@ -59,7 +59,7 @@ async function fetchUserProfile() {
 
     if (profile.role === 'superadmin' || profile.role === 'admin') {
         badge.className = "px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-cyan-100 text-cyan-800 border border-cyan-200";
-        // Unlocks the administration PO ingestion interface
+        
         document.getElementById('admin-panel').classList.remove('hidden');
     } else if (profile.role === 'reviewer') {
         badge.className = "px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200";
@@ -82,7 +82,6 @@ async function fetchAndRenderProjects() {
         return;
     }
 
-    // Clean initial loader states
     grid.innerHTML = "";
     countBadge.textContent = projects.length;
 
@@ -100,20 +99,51 @@ async function fetchAndRenderProjects() {
             year: 'numeric', month: 'short', day: 'numeric'
         });
 
+        const isAdminOrSuperadmin = currentUserProfile && (currentUserProfile.role === 'admin' || currentUserProfile.role === 'superadmin');
+        
+        let adminControlsHtml = '';
+        if (isAdminOrSuperadmin) {
+            adminControlsHtml = `
+                <div class="mt-3 pt-3 border-t border-slate-100 flex flex-col gap-2 bg-slate-50 p-2.5 rounded-lg">
+                    <div class="flex items-center justify-between gap-2">
+                        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Target Language:</label>
+                        <select id="lang-select-${project.id}" class="text-xs border border-slate-200 rounded px-1.5 py-0.5 bg-white font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-cyan-500">
+                            <option value="FR">🇫🇷 FR</option>
+                            <option value="ES">🇪🇸 ES</option>
+                            <option value="EN">🇬🇧 EN</option>
+                            <option value="DE">🇩🇪 DE</option>
+                        </select>
+                    </div>
+                    <div class="flex gap-2 justify-between mt-1">
+                        <button onclick="handleDeleteProject(${project.id})" class="inline-flex items-center bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold text-[11px] px-2.5 py-1 rounded-md transition">
+                            Delete
+                        </button>
+                        <button onclick="triggerDownload(${project.id}, '${project.name.replace(/'/g, "\\'")}')" class="inline-flex items-center gap-1 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold text-[11px] px-2.5 py-1 rounded-md shadow-xs transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                            </svg>
+                            Download .PO
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
         const card = document.createElement('div');
         card.className = "bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition flex flex-col justify-between relative overflow-hidden";
         card.innerHTML = `
             <div>
                 <h3 class="text-base font-bold text-slate-900 truncate mb-1">${project.name}</h3>
-                <p class="text-slate-400 text-xs flex items-center gap-1 mb-4">
+                <p class="text-slate-400 text-xs flex items-center gap-1 mb-2">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     Created on ${creationDate}
                 </p>
             </div>
-            <div class="pt-2 border-t border-slate-100 flex justify-end">
-                <a href="workspace.html?project_id=${project.id}" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2 rounded-lg shadow-sm transition">
+            ${adminControlsHtml}
+            <div class="pt-3 mt-2 border-t border-slate-100 flex justify-end">
+                <a href="workspace.html?project_id=${project.id}" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2 rounded-lg shadow-sm transition w-full justify-center">
                     Open Focus Hub
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -125,6 +155,181 @@ async function fetchAndRenderProjects() {
     });
 }
 
+
+async function handleDeleteProject(projectId) {
+    const confirmation = confirm("Are you absolutely sure you want to delete this project? All sequence maps and translation metadata will be permanently lost.");
+    if (!confirmation) return;
+
+    showToast("Processing", "Purging project structural data...", "info");
+
+    const { error } = await supabaseClient
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+
+    if (error) {
+        showToast("Deletion Failure", error.message, "error");
+    } else {
+        showToast("Success", "Project cleanly wiped from system matrices.", "success");
+        await fetchAndRenderProjects();
+    }
+}
+
+function triggerDownload(projectId, projectName) {
+    const langSelect = document.getElementById(`lang-select-${projectId}`);
+    const selectedLang = langSelect ? langSelect.value : 'FR';
+    downloadTranslatedPoFile(projectId, projectName, selectedLang);
+}
+
+async function downloadTranslatedPoFile(projectId, projectName, targetLanguage) {
+    showToast("Exporting", "Fetching original .po template and compiling matrix translations...", "info");
+
+    try {
+        
+        const { data: lines, error: linesError } = await supabaseClient
+            .from('lines')
+            .select('id, msgid, sequence_order')
+            .eq('project_id', projectId)
+            .order('sequence_order', { ascending: true });
+
+        if (linesError) {
+            showToast("Export Error", "Failed to compile original context lines.", "error");
+            return;
+        }
+
+        
+        const { data: approvedProposals, error: proposalsError } = await supabaseClient
+            .from('proposals')
+            .select('line_id, msgstr')
+            .eq('language', targetLanguage)
+            .eq('status', 'approved');
+
+        if (proposalsError) {
+            showToast("Export Error", "Failed to bridge matching target language blocks.", "error");
+            return;
+        }
+
+        
+        const translationMap = {};
+        approvedProposals.forEach(prop => {
+            translationMap[prop.line_id] = prop.msgstr;
+        });
+
+        
+        const orderedTranslations = lines.map(line => ({
+            msgstr: translationMap[line.id] || "" 
+        }));
+
+        
+        const { data: files, error: listError } = await supabaseClient.storage
+            .from('po-files')
+            .list(currentUser.id);
+
+        if (listError || !files) {
+            showToast("Storage Error", "Could not scan secure storage for file template.", "error");
+            return;
+        }
+
+        
+        const targetFile = files.find(f => f.name.startsWith(`${projectId}_`));
+        if (!targetFile) {
+            showToast("Template Missing", "Original template file could not be located in storage.", "error");
+            return;
+        }
+
+        const { data: blob, error: downloadError } = await supabaseClient.storage
+            .from('po-files')
+            .download(`${currentUser.id}/${targetFile.name}`);
+
+        if (downloadError) {
+            showToast("Download Error", "Failed to retrieve raw source file template.", "error");
+            return;
+        }
+
+        const originalPoText = await blob.text();
+
+        const originalLines = originalPoText.split(/\r?\n/);
+        let resultLines = [];
+        let dbIndex = 0;
+        let i = 0;
+
+        while (i < originalLines.length) {
+            let line = originalLines[i];
+
+            if (line.startsWith('msgid ')) {
+                let msgidBlock = [line];
+                let rawMsgidStr = line.substring(6).trim();
+                i++;
+                
+                while (i < originalLines.length && originalLines[i].startsWith('"')) {
+                    msgidBlock.push(originalLines[i]);
+                    rawMsgidStr += originalLines[i].trim();
+                    i++;
+                }
+
+                resultLines.push(...msgidBlock);
+                
+                const isHeader = (rawMsgidStr === '""');
+
+                while (i < originalLines.length && !originalLines[i].startsWith('msgstr')) {
+                    resultLines.push(originalLines[i]);
+                    i++;
+                }
+
+                if (i < originalLines.length && originalLines[i].startsWith('msgstr')) {
+                    if (isHeader) {
+                        resultLines.push(originalLines[i]);
+                        i++;
+                        while (i < originalLines.length && originalLines[i].startsWith('"')) {
+                            resultLines.push(originalLines[i]);
+                            i++;
+                        }
+                    } else {
+                        i++;
+                        while (i < originalLines.length && originalLines[i].startsWith('"')) {
+                            i++;
+                        }
+
+                        let approvedText = "";
+                        if (dbIndex < orderedTranslations.length) {
+                            approvedText = orderedTranslations[dbIndex].msgstr;
+                            dbIndex++;
+                        }
+
+                        const escapedMsgstr = approvedText.replace(/"/g, '\\"').replace(/\n/g, '\\n');
+                        resultLines.push(`msgstr "${escapedMsgstr}"`);
+                    }
+                }
+            } else {
+                resultLines.push(line);
+                i++;
+            }
+        }
+        const sanitizedName = projectName.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'project';
+        const fileName = `${sanitizedName}_export_${targetLanguage}.po`;
+
+        const finalBlob = new Blob([resultLines.join('\n')], { type: 'text/plain;charset=utf-8' });
+        const downloadUrl = URL.createObjectURL(finalBlob);
+        
+        const transientLink = document.createElement('a');
+        transientLink.href = downloadUrl;
+        transientLink.download = fileName;
+        
+        document.body.appendChild(transientLink);
+        transientLink.click();
+        
+        document.body.removeChild(transientLink);
+        URL.revokeObjectURL(downloadUrl);
+
+        showToast("Export Complete", `File saved cleanly as ${fileName}`, "success");
+
+    } catch (err) {
+        showToast("Unexpected Exception", err.message, "error");
+    }
+}
+
+window.handleDeleteProject = handleDeleteProject;
+window.triggerDownload = triggerDownload;
 
 async function handleCreateProject(event) {
     event.preventDefault();
@@ -145,7 +350,7 @@ async function handleCreateProject(event) {
     showToast("Processing", "Creating base project infrastructure...", "info");
 
     try {
-        // Step 1: Insert project structural metadata record into the public database
+        
         const { data: project, error: projectError } = await supabaseClient
             .from('projects')
             .insert({ name: projectName })
@@ -158,7 +363,7 @@ async function handleCreateProject(event) {
             return;
         }
 
-        // Step 2: Stream the raw text file directly to your 'po-files' storage bucket
+        
         submitBtn.innerHTML = `<span class="animate-pulse">Uploading script to secure storage...</span>`;
         const fileExt = file.name.split('.').pop();
         const filePath = `${currentUser.id}/${project.id}_${Date.now()}.${fileExt}`;
@@ -173,7 +378,7 @@ async function handleCreateProject(event) {
             return;
         }
 
-        // Step 3: Trigger the server-side Deno Edge Function to run parsing in the background
+        
         submitBtn.innerHTML = `<span class="animate-pulse">Server parsing matrix lines...</span>`;
         
         const { data: functionData, error: functionError } = await supabaseClient
@@ -204,5 +409,5 @@ async function logout() {
     window.location.href = "auth.html";
 }
 
-// Initializing DOM trigger listener hooks
+
 window.addEventListener('DOMContentLoaded', checkSession);
