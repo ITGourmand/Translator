@@ -79,6 +79,44 @@
                 </button>
             </form>
         </div>
+        <div id="import-translation-panel" class="hidden bg-white p-8 rounded-2xl border-l-4 border-brandCyan-500 shadow-sm mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-brandGreen-700 mb-1">Project Workspace: Import Translations (.po)</h2>
+                    <p class="text-stone-400 text-xs">Inject approved msgstr lines from an external translation variant without overriding existing approved blocks.</p>
+                </div>
+                <button onclick="closeImportPanel()" class="text-xs text-stone-400 hover:text-stone-600 font-semibold">✕ Close</button>
+            </div>
+            
+            <form id="import-po-form" onsubmit="handleImportPo(event)" class="space-y-4 max-w-xl mb-6">
+                <input type="hidden" id="import-project-id">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-1.5">Target Language</label>
+                        <select id="import-lang-select" class="w-full bg-offWhite border border-stone-200 rounded-xl p-3 text-sm text-brandGreen-800 focus:outline-none focus:ring-2 focus:ring-brandCyan-500 transition">
+                            <option value="FR">🇫🇷 FR</option>
+                            <option value="ES">🇪🇸 ES</option>
+                            <option value="EN">🇬🇧 EN</option>
+                            <option value="DE">🇩🇪 DE</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-1.5">Select Variant .PO File</label>
+                        <input type="file" id="import-file-input" required accept=".po" class="w-full text-xs text-stone-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-brandGreen-50 file:text-brandGreen-700 hover:file:bg-brandGreen-100 cursor-pointer">
+                    </div>
+                </div>
+                <button type="submit" id="import-submit-btn" class="bg-brandCyan-500 hover:bg-brandCyan-700 text-white font-medium text-xs px-5 py-3 rounded-xl shadow transition tracking-wide">
+                    Merge Translation Matrix
+                </button>
+            </form>
+
+            <div class="border-t border-stone-100 pt-5">
+                <h3 class="text-xs font-bold text-brandGreen-800 uppercase tracking-wider mb-3">Batch Import History & Rollback Ledger</h3>
+                <div id="imports-history-list" class="space-y-2 max-h-48 overflow-y-auto text-xs">
+                    <!-- Dynamic items rendered via JS -->
+                </div>
+            </div>
+        </div>
 
         <h2 class="text-lg font-bold text-brandGreen-800 mb-5 flex items-center gap-3">
             Available Translation Projects

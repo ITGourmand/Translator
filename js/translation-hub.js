@@ -11,29 +11,6 @@ let userPendingProposalRef = null;
 
 let currentLanguage = 'FR';
 
-function showToast(title, message, type = 'info') {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-
-    const toast = document.createElement('div');
-    const borderColors = {
-        success: 'border-emerald-500 bg-white text-slate-800 shadow-md',
-        error: 'border-red-500 bg-white text-slate-800 shadow-md',
-        info: 'border-cyan-500 bg-white text-slate-800 shadow-md'
-    };
-
-    toast.className = `p-4 border-l-4 rounded-r-lg shadow-lg flex flex-col transition duration-300 transform translate-y-2 ${borderColors[type] || borderColors.info}`;
-    toast.innerHTML = `
-        <strong class="font-bold text-sm text-slate-900">${title}</strong>
-        <span class="text-xs text-slate-600 mt-0.5">${message}</span>
-    `;
-
-    container.appendChild(toast);
-    setTimeout(() => {
-        toast.classList.add('opacity-0');
-        setTimeout(() => toast.remove(), 300);
-    }, 4000);
-}
 
 // Initialisation de la session
 async function verifySession() {
@@ -257,6 +234,16 @@ async function toggleLineLock() {
     }
 }
 
+function escapeHtml(str) {
+    if (!str) return '';
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 // Rendu collaboratif et intelligent des propositions
 async function fetchAndRenderProposals(lineId) {
     const listContainer = document.getElementById('proposals-list');
@@ -342,12 +329,10 @@ async function fetchAndRenderProposals(lineId) {
         const item = document.createElement('div');
         item.className = `p-3 rounded-xl border transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${prop.status === 'approved' ? 'border-emerald-500 bg-emerald-50/20 shadow-xs' : 'border-slate-200'} ${lockedVisualClass}`;
         
-        // --- BLOC D'ACTIONS DES CARTES CONFIGURÉ ---
         let actionButtons = [];
         const isOwner = prop.user_id === currentUser.id;
 
         if (!isLocked) {
-            // Droits Reviewer / Admin
             if (isReviewerOrAdmin) {
                 if (prop.status !== 'approved') {
                     actionButtons.push(`<button onclick="alterProposalStatus(${prop.id}, 'approved')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2 py-1 rounded shadow-sm transition">Approve</button>`);
@@ -366,13 +351,15 @@ async function fetchAndRenderProposals(lineId) {
         if (actionButtons.length > 0) {
             actionsHtml = `<div class="flex gap-1.5 self-end sm:self-center">${actionButtons.join('')}</div>`;
         }
-        // --------------------------------------------
+        
+        const safeMsgstr = escapeHtml(prop.msgstr);
+        const safeAuthorName = escapeHtml(authorName);
 
         item.innerHTML = `
             <div class="space-y-1 max-w-xl w-full">
-                <p class="font-mono text-xs text-slate-900 break-words whitespace-pre-wrap">${prop.msgstr}</p>
+                <p class="font-mono text-xs text-slate-900 break-words whitespace-pre-wrap">${safeMsgstr}</p>
                 <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-                    <span class="font-medium text-slate-600">@${authorName}</span>
+                    <span class="font-medium text-slate-600">@${safeAuthorName}</span>
                     <span>•</span>
                     <span>${dateString}</span>
                     <span class="px-2 py-0.5 rounded-full text-[10px] tracking-wide uppercase ${badgeStyle}">${prop.status}</span>
@@ -418,8 +405,12 @@ async function handleProposalSubmission(event) {
     if (event) event.preventDefault();
     if (!activeLineRef || activeLineRef.is_locked) return;
 
-    const textInput = document.getElementById('proposal-textarea');
     const submitBtn = document.getElementById('submit-proposal-btn');
+    if (submitBtn && submitBtn.disabled) return; 
+
+    const textInput = document.getElementById('proposal-textarea');
+    if (!textInput) return;
+    
     const targetStringValue = textInput.value.trim();
 
     if (!targetStringValue) {
@@ -464,7 +455,6 @@ async function handleProposalSubmission(event) {
     }
 }
 
-// Modération exclusive : Approuver une proposition rejette automatiquement toutes les autres ET verrouille la ligne
 async function alterProposalStatus(proposalId, newStatus) {
     if (!activeLineRef) return;
 
@@ -478,7 +468,7 @@ async function alterProposalStatus(proposalId, newStatus) {
                 .eq('language', currentLanguage)
                 .neq('id', proposalId);
 
-            // Étape 2 : Verrouille automatiquement la ligne source (Lock automatique à l'acceptation)
+            // Étape 2 : Verrouille automatiquement la ligne source
             let currentLockedList = activeLineRef.locked_languages || [];
             if (!currentLockedList.includes(currentLanguage)) {
                 currentLockedList.push(currentLanguage);
@@ -564,5 +554,14 @@ document.addEventListener('keydown', (e) => {
         handleProposalSubmission();
     }
 });
+
+window.toggleLineLock = toggleLineLock;
+window.alterProposalStatus = alterProposalStatus;
+window.handleDeleteProposal = handleDeleteProposal;
+window.handleProposalSubmission = handleProposalSubmission;
+window.navigateLine = navigateLine;
+window.handleDirectLineJump = handleDirectLineJump;
+window.jumpToNextUntranslated = jumpToNextUntranslated;
+window.handleLanguageChange = handleLanguageChange;
 
 window.addEventListener('DOMContentLoaded', verifySession);

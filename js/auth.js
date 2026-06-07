@@ -1,29 +1,5 @@
 let isSignUpMode = false;
 
-function showToast(title, message, type = 'info') {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-
-    const toast = document.createElement('div');
-    const borderColors = {
-        success: 'border-emerald-500 bg-white text-slate-800 shadow-md',
-        error: 'border-red-500 bg-white text-slate-800 shadow-md',
-        info: 'border-cyan-500 bg-white text-slate-800 shadow-md'
-    };
-
-    toast.className = `p-4 border-l-4 rounded-r-lg shadow-lg flex flex-col transition duration-300 transform translate-y-2 ${borderColors[type] || borderColors.info}`;
-    toast.innerHTML = `
-        <strong class="font-bold text-sm text-slate-900">${title}</strong>
-        <span class="text-xs text-slate-600 mt-0.5">${message}</span>
-    `;
-
-    container.appendChild(toast);
-    setTimeout(() => {
-        toast.classList.add('opacity-0');
-        setTimeout(() => toast.remove(), 300);
-    }, 4000);
-}
-
 function switchMode(signUp) {
     isSignUpMode = signUp;
     const tabSignIn = document.getElementById('tab-signin');
