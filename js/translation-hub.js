@@ -12,6 +12,18 @@ let userPendingProposalRef = null;
 let currentLanguage = 'FR';
 
 
+function updateURLParams() {
+    if (!projectId) return;
+    const params = new URLSearchParams(window.location.search);
+    params.set('project_id', projectId);
+    params.set('line', currentSequenceOrder);
+    params.set('lang', currentLanguage);
+    
+    // Met à jour l'URL sans recharger la page
+    window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+}
+
+
 // Initialisation de la session
 async function verifySession() {
     const params = new URLSearchParams(window.location.search);
@@ -23,6 +35,20 @@ async function verifySession() {
         return;
     }
 
+    const lineParam = params.get('line');
+    if (lineParam) {
+        currentSequenceOrder = parseInt(lineParam, 10) || 1;
+    } else {
+        currentSequenceOrder = 1;
+    }
+
+    const langParam = params.get('lang')?.toUpperCase();
+    if (langParam && ALLOWED_LANGUAGES.includes(langParam)) {
+        currentLanguage = langParam;
+    } else {
+        currentLanguage = 'FR';
+    }   
+
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) {
         window.location.href = "auth.html";
@@ -31,7 +57,11 @@ async function verifySession() {
 
     currentUser = session.user;
     await fetchProfileAndPermissions();
-    await fetchProjectMetadata();
+
+    const projectExists = await fetchProjectMetadata();
+    if (!projectExists) {
+        return;
+    }
     await loadProjectSequenceMatrix();
 
     supabaseClient
@@ -75,11 +105,16 @@ async function fetchProjectMetadata() {
         .from('projects')
         .select('name')
         .eq('id', projectId)
-        .single();
+        .maybeSingle();
 
-    if (!error && project) {
-        document.getElementById('nav-project-name').textContent = project.name;
+    if (error || !project) {
+        alert("This project does not exist. Returning to dashboard.");
+        window.location.href = "index.html";
+        return false;
     }
+
+    document.getElementById('nav-project-name').textContent = project.name;
+    return true;
 }
 
 // Extraction chirurgicale des métadonnées globales
@@ -98,7 +133,9 @@ async function loadProjectSequenceMatrix() {
     document.getElementById('total-lines-badge').textContent = totalLinesCount;
 
     if (totalLinesCount > 0) {
-        currentSequenceOrder = 1;
+        if (currentSequenceOrder < 1 || currentSequenceOrder > totalLinesCount) {
+            currentSequenceOrder = 1;
+        }
         await refreshCarouselWorkspace();
         await updateMetricsTracker();
     } else {
@@ -129,6 +166,12 @@ async function refreshCarouselWorkspace() {
 
     document.getElementById('direct-line-input').value = currentSequenceOrder;
     document.getElementById('proposal-textarea').value = "";
+
+    const langSelect = document.getElementById('target-language-select');
+    if (langSelect) {
+        langSelect.value = currentLanguage;
+    }
+    updateURLParams();
 
     const isReviewerOrAdmin = ['reviewer', 'admin', 'superadmin'].includes(userProfile?.role);
 

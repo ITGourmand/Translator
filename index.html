@@ -68,7 +68,7 @@
             <form id="upload-po-form" onsubmit="handleCreateProject(event)" class="space-y-4 max-w-xl">
                 <div>
                     <label class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-1.5">Project Name</label>
-                    <input type="text" id="project-name" required placeholder="e.g., Mobile App - French Translation" class="w-full bg-offWhite border border-stone-200 rounded-xl p-3 text-sm text-brandGreen-800 focus:outline-none focus:ring-2 focus:ring-brandCyan-500 transition">
+                    <input type="text" id="project-name" required placeholder="My Project Name...." class="w-full bg-offWhite border border-stone-200 rounded-xl p-3 text-sm text-brandGreen-800 focus:outline-none focus:ring-2 focus:ring-brandCyan-500 transition">
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-1.5">Select .PO File</label>
@@ -94,10 +94,14 @@
                     <div>
                         <label class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-1.5">Target Language</label>
                         <select id="import-lang-select" class="w-full bg-offWhite border border-stone-200 rounded-xl p-3 text-sm text-brandGreen-800 focus:outline-none focus:ring-2 focus:ring-brandCyan-500 transition">
+                            <option value="EN">🇺🇸 EN</option>
                             <option value="FR">🇫🇷 FR</option>
                             <option value="ES">🇪🇸 ES</option>
-                            <option value="EN">🇬🇧 EN</option>
+                            <option value="IT">🇮🇹 IT</option>
                             <option value="DE">🇩🇪 DE</option>
+                            <option value="RU">🇷🇺 RU</option>
+                            <option value="CH">🇨🇳 CH</option>
+                            <option value="JP">🇯🇵 JP</option>
                         </select>
                     </div>
                     <div>

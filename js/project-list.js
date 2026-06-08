@@ -84,10 +84,14 @@ async function fetchAndRenderProjects() {
                     <div class="flex items-center justify-between gap-2">
                         <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Target Language:</label>
                         <select id="lang-select-${project.id}" class="text-xs border border-slate-200 rounded px-1.5 py-0.5 bg-white font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-cyan-500">
+                            <option value="EN">🇺🇸 EN</option>
                             <option value="FR">🇫🇷 FR</option>
                             <option value="ES">🇪🇸 ES</option>
-                            <option value="EN">🇬🇧 EN</option>
+                            <option value="IT">🇮🇹 IT</option>
                             <option value="DE">🇩🇪 DE</option>
+                            <option value="RU">🇷🇺 RU</option>
+                            <option value="CH">🇨🇳 CH</option>
+                            <option value="JP">🇯🇵 JP</option>
                         </select>
                     </div>
                     <div class="flex gap-2 justify-between mt-1">
