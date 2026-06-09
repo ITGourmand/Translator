@@ -70,7 +70,7 @@ serve(async (req) => {
         }
 
         // Build a msgid → line ID(s) lookup map.
-        const msgidMap = new Map<string, number[]>();
+        const msgidMap = new Map<string, string[]>();
         for (const line of dbLines) {
             const ids = msgidMap.get(line.msgid) ?? [];
             ids.push(line.id);
@@ -79,7 +79,7 @@ serve(async (req) => {
 
         // 7. Fetch the set of line IDs that already have an approved proposal.
         const dbLineIds = dbLines.map((line) => line.id);
-        const approvedLineIds = new Set<number>();
+        const approvedLineIds = new Set<string>();
 
         if (dbLineIds.length > 0) {
             const { data: approvedProposals, error: approvedError } = await supabaseAdmin
@@ -92,12 +92,12 @@ serve(async (req) => {
             if (approvedError) {
                 throw new Error(`Failed to fetch approved proposals: ${approvedError.message}`);
             }
-            approvedProposals?.forEach((prop) => approvedLineIds.add(Number(prop.line_id)));
+            approvedProposals?.forEach((prop) => approvedLineIds.add(prop.line_id));
         }
 
         // 8. Build the list of proposals to insert, skipping empty and already-approved lines.
         const proposalsToInsert: object[] = [];
-        const lineIdsToPropagate: number[] = [];
+        const lineIdsToPropagate: string[] = [];
         let skippedApproved = 0;
 
         for (const entry of entries) {
@@ -107,21 +107,23 @@ serve(async (req) => {
             const targetLineIds = msgidMap.get(entry.msgid);
             if (!targetLineIds || targetLineIds.length === 0) continue; // No matching source line.
 
-            const mainLineId = targetLineIds[0];
-            if (approvedLineIds.has(Number(mainLineId))) {
-                skippedApproved++;
-                continue;
-            }
+            for (const lineId of targetLineIds) {
+                if (approvedLineIds.has(lineId)) {
+                    skippedApproved++;
+                    continue;
+                }
 
-            proposalsToInsert.push({
-                line_id: mainLineId,
-                user_id: user.id,
-                msgstr: entry.msgstr,
-                language,
-                status: "approved",
-                import_id: importId,
-            });
-            lineIdsToPropagate.push(mainLineId);
+                proposalsToInsert.push({
+                    line_id: lineId,
+                    user_id: user.id,
+                    msgstr: entry.msgstr,
+                    language,
+                    status: "approved",
+                    import_id: importId,
+                });
+                approvedLineIds.add(lineId);
+                lineIdsToPropagate.push(lineId);
+            }
         }
 
         // 9. Insert proposals in batches.
