@@ -5,35 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Authentication - Crowdsourced PO Translator</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/tailwind.config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/supabase-client.js" defer></script>
-    <script src="js/auth.js" defer></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        offWhite: '#f9f8f4',
-                        brandGreen: {
-                            50: '#f0f7f4',
-                            600: '#115e3b',
-                            700: '#0b462e',
-                            800: '#062d1e',
-                        },
-                        brandCyan: {
-                            500: '#06b6d4',
-                            600: '#0891b2',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+    <script type="module" src="js/pages/auth.js"></script>
 </head>
 <body class="bg-offWhite text-brandGreen-800 min-h-screen flex items-center justify-center font-sans p-4">
     <div class="bg-white p-10 rounded-2xl border border-stone-200/60 w-full max-w-md shadow-xl shadow-stone-200/40 relative overflow-hidden">
-        
-        <!-- 10% Cyan dynamic top line accent -->
+
+        <!-- Cyan top line accent -->
         <div class="absolute top-0 left-0 right-0 h-1 bg-brandCyan-500"></div>
 
         <div class="text-center mb-8">
@@ -41,13 +20,12 @@
             <p class="text-stone-400 text-xs tracking-wide uppercase mt-1">Collaborative Translation Platform</p>
         </div>
 
-        <!-- 30% Green dominance on main tabs structure -->
         <div class="flex border-b border-stone-100 mb-6">
-            <button id="tab-signin" class="flex-1 pb-3 text-center font-semibold text-brandGreen-700 border-b-2 border-brandGreen-700 transition" onclick="switchMode(false)">Sign In</button>
-            <button id="tab-signup" class="flex-1 pb-3 text-center font-medium text-stone-400 border-b-2 border-transparent hover:text-brandGreen-600 transition" onclick="switchMode(true)">Sign Up</button>
+            <button id="tab-signin" type="button" class="flex-1 pb-3 text-center font-semibold text-brandGreen-700 border-b-2 border-brandGreen-700 transition">Sign In</button>
+            <button id="tab-signup" type="button" class="flex-1 pb-3 text-center font-medium text-stone-400 border-b-2 border-transparent hover:text-brandGreen-600 transition">Sign Up</button>
         </div>
 
-        <form id="auth-form" onsubmit="handleAuth(event)" class="space-y-4">
+        <form id="auth-form" class="space-y-4">
             <div id="username-container" class="hidden">
                 <label class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-1">Username</label>
                 <input type="text" id="auth-username" class="w-full bg-offWhite border border-stone-200 rounded-xl p-3 text-brandGreen-800 focus:outline-none focus:ring-2 focus:ring-brandCyan-500 focus:border-transparent transition" placeholder="johndoe">
@@ -67,8 +45,8 @@
                 Sign In to Platform
             </button>
         </form>
-
-        <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2 max-w-sm w-full"></div>
     </div>
+
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2 max-w-sm w-full"></div>
 </body>
 </html>

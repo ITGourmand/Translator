@@ -5,32 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Profile - Translator</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/tailwind.config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/supabase-client.js" defer></script>
-    <script src="js/profile-manager.js" defer></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        offWhite: '#f9f8f4',
-                        brandGreen: {
-                            50: '#f0f7f4',
-                            600: '#115e3b',
-                            700: '#0b462e',
-                            800: '#062d1e',
-                        },
-                        brandCyan: {
-                            500: '#06b6d4',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+    <script type="module" src="js/pages/profile.js"></script>
 </head>
 <body class="bg-offWhite text-stone-800 min-h-screen font-sans">
-    
+
     <nav class="bg-white border-b border-stone-200/60 sticky top-0 z-40 shadow-xs">
         <div class="container mx-auto px-6 py-4 flex justify-between items-center">
             <div class="flex items-center space-x-2">
@@ -39,14 +19,15 @@
             </div>
             <div class="flex items-center space-x-4">
                 <a href="index.html" class="text-sm font-medium text-stone-500 hover:text-brandGreen-700 transition">Dashboard</a>
-                <button onclick="logout()" class="text-sm font-medium text-red-600 hover:text-red-700 transition">Logout</button>
+                <button type="button" data-action="logout" class="text-sm font-medium text-red-600 hover:text-red-700 transition">Logout</button>
             </div>
         </div>
     </nav>
 
     <main class="container mx-auto px-6 py-10 max-w-4xl">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-            
+
+            <!-- Avatar card -->
             <div class="bg-white p-8 rounded-2xl border border-stone-200/60 shadow-xs flex flex-col items-center text-center">
                 <div class="relative group mb-4">
                     <img id="profile-avatar" src="https://api.dicebear.com/7.x/initials/svg?seed=User" alt="Avatar" class="w-28 h-28 rounded-full border-4 border-offWhite shadow-md object-cover bg-offWhite">
@@ -56,9 +37,9 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
                     </label>
-                    <input type="file" id="avatar-upload" accept="image/*" class="hidden" onchange="uploadAvatar()">
+                    <input type="file" id="avatar-upload" accept="image/*" class="hidden">
                 </div>
-                
+
                 <h2 id="profile-username-display" class="text-lg font-bold text-brandGreen-800 tracking-tight">Loading...</h2>
                 <span id="profile-role-badge" class="mt-2 px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-brandGreen-50 text-brandGreen-700 border border-brandGreen-100">
                     Translator
@@ -66,12 +47,13 @@
             </div>
 
             <div class="md:col-span-2 space-y-6">
-                
+
+                <!-- Account Settings -->
                 <div class="bg-white p-8 rounded-2xl border border-stone-200/60 shadow-xs relative overflow-hidden">
                     <div class="absolute top-0 left-0 right-0 h-1 bg-brandGreen-700"></div>
                     <h3 class="text-base font-bold text-brandGreen-800 mb-4 tracking-tight">Account Settings</h3>
-                    
-                    <form onsubmit="updateProfileInfo(event)" class="space-y-4">
+
+                    <form id="profile-form" class="space-y-4">
                         <div>
                             <label class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-1.5">Modify Username</label>
                             <input type="text" id="settings-username" required class="w-full bg-offWhite border border-stone-200 rounded-xl p-3 text-brandGreen-800 focus:outline-none focus:ring-2 focus:ring-brandCyan-500 transition">
@@ -82,16 +64,17 @@
                     </form>
                 </div>
 
+                <!-- Promo / Access Key -->
                 <div id="promo-key-section" class="bg-white p-8 rounded-2xl border border-stone-200/60 shadow-xs relative overflow-hidden">
                     <div class="absolute top-0 left-0 right-0 h-1 bg-brandCyan-500"></div>
-                    
+
                     <div id="redeem-key-block">
                         <h3 class="text-base font-bold text-brandGreen-800 mb-1 tracking-tight">Redeem Access Key</h3>
                         <p class="text-stone-400 text-xs mb-4">Got an invitation token? Enter it here to promote your account.</p>
-                        
+
                         <div class="flex gap-3">
                             <input type="text" id="promo-key-input" placeholder="Paste token" class="flex-1 bg-offWhite border border-stone-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brandCyan-500 font-mono">
-                            <button onclick="redeemPromoKey()" class="bg-brandGreen-800 hover:bg-brandGreen-700 text-white font-medium text-xs px-5 py-3 rounded-xl shadow transition tracking-wide">
+                            <button type="button" data-action="redeem-promo-key" class="bg-brandGreen-800 hover:bg-brandGreen-700 text-white font-medium text-xs px-5 py-3 rounded-xl shadow transition tracking-wide">
                                 Activate Key
                             </button>
                         </div>
@@ -100,13 +83,13 @@
                     <div id="create-key-block" class="hidden">
                         <h3 class="text-base font-bold text-brandGreen-800 mb-1 tracking-tight">Create Access Key</h3>
                         <p class="text-stone-400 text-xs mb-4">Select a role to generate a secure invitation token for a new team member.</p>
-                        
+
                         <div class="flex flex-col sm:flex-row gap-3 items-center">
                             <div class="w-full sm:w-48">
                                 <select id="create-key-role" class="w-full bg-offWhite border border-stone-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brandCyan-500 text-brandGreen-700 font-bold">
-                                    </select>
+                                </select>
                             </div>
-                            <button onclick="generatePromoKey()" class="w-full sm:w-auto bg-brandGreen-700 hover:bg-brandGreen-800 text-white font-semibold text-xs px-6 py-3.5 rounded-xl shadow transition tracking-wide whitespace-nowrap">
+                            <button type="button" data-action="generate-promo-key" class="w-full sm:w-auto bg-brandGreen-700 hover:bg-brandGreen-800 text-white font-semibold text-xs px-6 py-3.5 rounded-xl shadow transition tracking-wide whitespace-nowrap">
                                 Generate Key
                             </button>
                         </div>
@@ -116,9 +99,9 @@
                                 <span class="text-[10px] font-bold text-brandCyan-600 uppercase tracking-widest mb-0.5">Generated Token</span>
                                 <span id="generated-key-text" class="font-mono text-base font-bold text-brandGreen-800 tracking-wider select-all">REV-XXXXXXXX</span>
                             </div>
-                            <button onclick="copyGeneratedKey()" id="copy-key-btn" class="inline-flex items-center gap-1.5 bg-white border border-stone-200 hover:bg-stone-50 text-stone-600 active:text-brandGreen-700 font-medium text-xs px-3 py-2 rounded-lg transition shadow-xs">
+                            <button type="button" data-action="copy-generated-key" id="copy-key-btn" class="inline-flex items-center gap-1.5 bg-white border border-stone-200 hover:bg-stone-50 text-stone-600 active:text-brandGreen-700 font-medium text-xs px-3 py-2 rounded-lg transition shadow-xs">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                                 </svg>
                                 Copy
                             </button>
@@ -126,10 +109,11 @@
                     </div>
                 </div>
 
+                <!-- Danger Zone -->
                 <div class="bg-white p-8 rounded-2xl border border-red-100 bg-red-50/10">
                     <h3 class="text-base font-bold text-red-700 mb-1 tracking-tight">Danger Zone</h3>
                     <p class="text-stone-400 text-xs mb-4">Permanently destroy your credentials. This process is completely irreversible.</p>
-                    <button onclick="deleteAccount()" class="bg-red-600 hover:bg-red-700 text-white font-medium text-xs px-4 py-2.5 rounded-xl transition">
+                    <button type="button" data-action="delete-account" class="bg-red-600 hover:bg-red-700 text-white font-medium text-xs px-4 py-2.5 rounded-xl transition">
                         Delete Account Permanently
                     </button>
                 </div>

@@ -5,35 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Translator</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/tailwind.config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/supabase-client.js" defer></script>
-    <script src="js/project-list.js" defer></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        offWhite: '#f9f8f4',
-                        brandGreen: {
-                            50: '#f0f7f4',
-                            100: '#dcfce7',
-                            600: '#115e3b',
-                            700: '#0b462e',
-                            800: '#062d1e',
-                        },
-                        brandCyan: {
-                            100: '#cffafe',
-                            500: '#06b6d4',
-                            700: '#0e7490',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+    <script type="module" src="js/pages/dashboard.js"></script>
 </head>
 <body class="bg-offWhite text-stone-800 min-h-screen font-sans">
-    
+
     <nav class="bg-white border-b border-stone-200/60 sticky top-0 z-40 shadow-xs">
         <div class="container mx-auto px-6 py-4 flex justify-between items-center">
             <div class="flex items-center space-x-3">
@@ -43,13 +20,13 @@
             <div class="flex items-center space-x-6">
                 <a href="index.html" class="text-sm font-semibold text-brandGreen-700 border-b-2 border-brandGreen-700 pb-1">Dashboard</a>
                 <a href="profile.html" class="text-sm font-medium text-stone-500 hover:text-brandGreen-700 transition">My Profile</a>
-                <button onclick="logout()" class="text-sm font-medium text-red-600 hover:text-red-700 transition">Logout</button>
+                <button type="button" data-action="logout" class="text-sm font-medium text-red-600 hover:text-red-700 transition">Logout</button>
             </div>
         </div>
     </nav>
 
     <main class="container mx-auto px-6 py-10 max-w-5xl">
-        
+
         <div class="bg-white p-8 rounded-2xl border border-stone-200/60 shadow-xs mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
                 <h1 class="text-2xl font-bold text-brandGreen-800 tracking-tight">Welcome Back, <span id="welcome-username" class="text-brandCyan-700">User</span>!</h1>
@@ -60,42 +37,60 @@
             </span>
         </div>
 
-        <!-- Admin Workspace utilizing 10% Cyan Highlight strategy -->
+        <!-- Admin panel: Create New Project -->
         <div id="admin-panel" class="hidden bg-white p-8 rounded-2xl border-l-4 border-brandCyan-500 shadow-sm relative overflow-hidden mb-8">
             <h2 class="text-lg font-bold text-brandGreen-700 mb-1">Admin Workspace: Create New Project</h2>
-            <p class="text-stone-400 text-xs mb-6">Provide a unique project name and upload a raw <code>.po</code> file.</p>
-            
-            <form id="upload-po-form" onsubmit="handleCreateProject(event)" class="space-y-4 max-w-xl">
+            <p class="text-stone-400 text-xs mb-6">Provide a unique project name, select the source language, and upload a raw <code>.po</code> file.</p>
+
+            <form id="upload-po-form" class="space-y-4 max-w-xl">
                 <div>
                     <label class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-1.5">Project Name</label>
                     <input type="text" id="project-name" required placeholder="My Project Name...." class="w-full bg-offWhite border border-stone-200 rounded-xl p-3 text-sm text-brandGreen-800 focus:outline-none focus:ring-2 focus:ring-brandCyan-500 transition">
                 </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-1.5">Source Language (msgid language)</label>
+                    <select id="project-source-lang" class="w-full bg-offWhite border border-stone-200 rounded-xl p-3 text-sm text-brandGreen-800 focus:outline-none focus:ring-2 focus:ring-brandCyan-500 transition">
+                        <option value="EN" selected>🇺🇸 EN</option>
+                        <option value="FR">🇫🇷 FR</option>
+                        <option value="ES">🇪🇸 ES</option>
+                        <option value="IT">🇮🇹 IT</option>
+                        <option value="DE">🇩🇪 DE</option>
+                        <option value="RU">🇷🇺 RU</option>
+                        <option value="CH">🇨🇳 CH</option>
+                        <option value="JP">🇯🇵 JP</option>
+                    </select>
+                </div>
+
                 <div>
                     <label class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-1.5">Select .PO File</label>
                     <input type="file" id="po-file-input" required accept=".po" class="w-full text-xs text-stone-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-brandGreen-50 file:text-brandGreen-700 hover:file:bg-brandGreen-100 cursor-pointer">
                 </div>
+
                 <button type="submit" id="upload-submit-btn" class="bg-brandGreen-700 hover:bg-brandGreen-800 text-white font-medium text-xs px-5 py-3 rounded-xl shadow transition tracking-wide">
-                    Ingest & Create Project
+                    Ingest &amp; Create Project
                 </button>
             </form>
         </div>
+
+        <!-- Import Translation panel -->
         <div id="import-translation-panel" class="hidden bg-white p-8 rounded-2xl border-l-4 border-brandCyan-500 shadow-sm mb-8">
             <div class="flex justify-between items-center mb-4">
                 <div>
                     <h2 class="text-lg font-bold text-brandGreen-700 mb-1">Project Workspace: Import Translations (.po)</h2>
                     <p class="text-stone-400 text-xs">Inject approved msgstr lines from an external translation variant without overriding existing approved blocks.</p>
                 </div>
-                <button onclick="closeImportPanel()" class="text-xs text-stone-400 hover:text-stone-600 font-semibold">✕ Close</button>
+                <button type="button" data-action="close-import-panel" class="text-xs text-stone-400 hover:text-stone-600 font-semibold">Close</button>
             </div>
-            
-            <form id="import-po-form" onsubmit="handleImportPo(event)" class="space-y-4 max-w-xl mb-6">
+
+            <form id="import-po-form" class="space-y-4 max-w-xl mb-6">
                 <input type="hidden" id="import-project-id">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-1.5">Target Language</label>
+                        <label class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-1.5">Target Language (msgstr destination)</label>
                         <select id="import-lang-select" class="w-full bg-offWhite border border-stone-200 rounded-xl p-3 text-sm text-brandGreen-800 focus:outline-none focus:ring-2 focus:ring-brandCyan-500 transition">
                             <option value="EN">🇺🇸 EN</option>
-                            <option value="FR">🇫🇷 FR</option>
+                            <option value="FR" selected>🇫🇷 FR</option>
                             <option value="ES">🇪🇸 ES</option>
                             <option value="IT">🇮🇹 IT</option>
                             <option value="DE">🇩🇪 DE</option>
@@ -105,7 +100,7 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-1.5">Select Variant .PO File</label>
+                        <label class="block text-[10px] font-bold text-brandGreen-600 uppercase tracking-widest mb-1.5">Select .PO File</label>
                         <input type="file" id="import-file-input" required accept=".po" class="w-full text-xs text-stone-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-brandGreen-50 file:text-brandGreen-700 hover:file:bg-brandGreen-100 cursor-pointer">
                     </div>
                 </div>
@@ -115,7 +110,7 @@
             </form>
 
             <div class="border-t border-stone-100 pt-5">
-                <h3 class="text-xs font-bold text-brandGreen-800 uppercase tracking-wider mb-3">Batch Import History & Rollback Ledger</h3>
+                <h3 class="text-xs font-bold text-brandGreen-800 uppercase tracking-wider mb-3">Batch Import History &amp; Rollback Ledger</h3>
                 <div id="imports-history-list" class="space-y-2 max-h-48 overflow-y-auto text-xs">
                     <!-- Dynamic items rendered via JS -->
                 </div>
@@ -126,7 +121,7 @@
             Available Translation Projects
             <span id="project-count" class="text-xs font-bold px-2.5 py-0.5 bg-brandGreen-50 text-brandGreen-700 rounded-full">0</span>
         </h2>
-        
+
         <div id="project-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div id="project-loader" class="col-span-full text-center py-12 text-stone-400 text-sm italic bg-white rounded-2xl border border-stone-100">
                 Gathering active projects database metadata...

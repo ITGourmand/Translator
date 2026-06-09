@@ -1,0 +1,7 @@
+{
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "check:js": "node --check js/core/constants.js && node --check js/core/dom.js && node --check js/core/po.js && node --check js/core/supabase.js && node --check js/core/toast.js && node --check js/core/validation.js && node --check js/pages/auth.js && node --check js/pages/dashboard.js && node --check js/pages/profile.js && node --check js/pages/workspace.js"
+  }
+}
