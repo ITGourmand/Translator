@@ -73,7 +73,7 @@ serve(async (req) => {
         const msgidMap = new Map<string, string[]>();
         for (const line of dbLines) {
             const ids = msgidMap.get(line.msgid) ?? [];
-            ids.push(line.id);
+            ids.push(String(line.id));
             msgidMap.set(line.msgid, ids);
         }
 
@@ -92,7 +92,7 @@ serve(async (req) => {
             if (approvedError) {
                 throw new Error(`Failed to fetch approved proposals: ${approvedError.message}`);
             }
-            approvedProposals?.forEach((prop) => approvedLineIds.add(prop.line_id));
+            approvedProposals?.forEach((prop) => approvedLineIds.add(String(prop.line_id)));
         }
 
         // 8. Build the list of proposals to insert, skipping empty and already-approved lines.
@@ -114,12 +114,12 @@ serve(async (req) => {
                 }
 
                 proposalsToInsert.push({
-                    line_id: lineId,
+                    line_id: Number(lineId),
                     user_id: user.id,
                     msgstr: entry.msgstr,
                     language,
                     status: "approved",
-                    import_id: importId,
+                    import_id: Number(importId),
                 });
                 approvedLineIds.add(lineId);
                 lineIdsToPropagate.push(lineId);
@@ -137,9 +137,9 @@ serve(async (req) => {
 
             // 10. Propagate and lock lines in bulk via database function.
             const { error: propagateError } = await supabaseAdmin.rpc("propagate_bulk_import_by_lines", {
-                p_project_id: projectId,
-                p_import_id: importId,
-                p_line_ids: lineIdsToPropagate,
+                p_project_id: Number(projectId),
+                p_import_id: Number(importId),
+                p_line_ids: lineIdsToPropagate.map(Number),
                 p_language: language,
             });
 
