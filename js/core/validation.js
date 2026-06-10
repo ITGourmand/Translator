@@ -1,6 +1,6 @@
 import { ALLOWED_LANGUAGES, LANGUAGE_LABELS, MAX_AVATAR_BYTES, MAX_PO_FILE_BYTES } from "./constants.js";
 
-const RECORD_ID_PATTERN = /^[0-9a-f-]{1,64}$/i;
+const RECORD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function normalizeLanguage(value, fallback = "FR") {
     const language = String(value || "").trim().toUpperCase();

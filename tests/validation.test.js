@@ -17,8 +17,9 @@ test("language helpers normalize and reject unsupported values", () => {
 });
 
 test("record ids and file names are normalized conservatively", () => {
-    assert.equal(requireRecordId("123"), "123");
-    assert.equal(requireRecordId("1a2b-3c"), "1a2b-3c");
+    assert.equal(requireRecordId("550e8400-e29b-41d4-a716-446655440000"), "550e8400-e29b-41d4-a716-446655440000");
+    assert.throws(() => requireRecordId("123"), /invalid/);
+    assert.throws(() => requireRecordId("1a2b-3c"), /invalid/);
     assert.throws(() => requireRecordId("../1"), /invalid/);
     assert.equal(sanitizeFileBaseName("My Cool Project!"), "my_cool_project");
     assert.equal(storageSafeExtension("file.po"), "po");

@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { CORS_HEADERS, createAdminClient, jsonResponse, requireAdminUser } from "../_shared/auth.ts";
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 serve(async (req) => {
     if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
 
@@ -10,6 +12,7 @@ serve(async (req) => {
 
         const { projectId } = await req.json();
         if (!projectId) throw new Error("Missing required parameter: projectId.");
+        if (!UUID_PATTERN.test(String(projectId))) throw new Error("Project id must be a UUID. Refresh the dashboard and try again.");
 
         const { data: project, error: projectError } = await supabaseAdmin
             .from("projects")
