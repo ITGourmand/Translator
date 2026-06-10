@@ -264,7 +264,7 @@ function syncPendingProposalActions(myPending, isLocked) {
                 type: "button",
                 className: "bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-medium text-xs px-5 py-3 rounded-xl transition tracking-wide",
                 text: "Delete",
-                dataset: { action: "delete-proposal" },
+                dataset: { action: "delete-proposal", proposalId: myPending.id },
             });
             actionsContainer.insertBefore(deleteBtn, byId("submit-proposal-btn"));
         }
@@ -307,12 +307,12 @@ function renderProposalActions(prop, isLocked) {
         }
     }
 
-    if (isOwner && prop.status === "pending") {
+    if (isOwner && (prop.status === "pending" || prop.status === "rejected")) {
         actions.appendChild(createElement("button", {
             type: "button",
             className: "bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[10px] px-2 py-1 rounded transition border border-red-200",
             text: "Delete",
-            dataset: { action: "delete-proposal" },
+            dataset: { action: "delete-proposal", proposalId: prop.id },
         }));
     }
 
@@ -386,10 +386,11 @@ async function fetchAndRenderProposals(lineId) {
     proposalsToRender.forEach((proposal) => listContainer.appendChild(renderProposalItem(proposal, isLocked)));
 }
 
-async function handleDeleteProposal() {
-    if (!userPendingProposalRef) return;
+async function handleDeleteProposal(eventProposalId) {
+    const id = eventProposalId || userPendingProposalRef?.id;
+    if (!id) return;
 
-    const confirmed = confirm("Do you really want to delete your pending proposal?");
+    const confirmed = confirm("Do you really want to delete this proposal?");
     if (!confirmed) return;
 
     const deleteBtn = byId("delete-proposal-btn");
@@ -397,7 +398,7 @@ async function handleDeleteProposal() {
     if (deleteBtn) deleteBtn.disabled = true;
     if (submitBtn) submitBtn.disabled = true;
 
-    const { error } = await supabaseClient.from("proposals").delete().eq("id", userPendingProposalRef.id);
+    const { error } = await supabaseClient.from("proposals").delete().eq("id", id);
     if (error) {
         showToast("Error", `Unable to delete the proposal: ${error.message}`, "error");
         if (deleteBtn) deleteBtn.disabled = false;
@@ -405,7 +406,7 @@ async function handleDeleteProposal() {
         return;
     }
 
-    showToast("Success", "Your proposal has been deleted.", "success");
+    showToast("Success", "The proposal has been deleted.", "success");
     byId("proposal-textarea").value = "";
     await refreshCarouselWorkspace();
 }
@@ -568,7 +569,7 @@ function handleClick(event) {
     if (action === "navigate-line") navigateLine(Number.parseInt(direction, 10));
     if (action === "next-untranslated") void jumpToNextUntranslated();
     if (action === "toggle-lock") void toggleLineLock();
-    if (action === "delete-proposal") void handleDeleteProposal();
+    if (action === "delete-proposal") void handleDeleteProposal(proposalId);
     if (action === "set-proposal-status") void alterProposalStatus(proposalId, status);
 }
 

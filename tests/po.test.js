@@ -44,6 +44,21 @@ test("parsePoTranslations keeps msgstr order for imports", () => {
     ]);
 });
 
+test("parsePoTranslations preserves duplicate msgid entries in order", () => {
+    const text = [
+        'msgid "same"',
+        'msgstr "first"',
+        "",
+        'msgid "same"',
+        'msgstr "second"',
+    ].join("\n");
+
+    assert.deepEqual(parsePoTranslations(text), [
+        { msgid: "same", msgstr: "first", sequence_order: 1 },
+        { msgid: "same", msgstr: "second", sequence_order: 2 },
+    ]);
+});
+
 test("replacePoMsgstrs preserves the header and exports escaped translations", () => {
     const source = [
         'msgid ""',

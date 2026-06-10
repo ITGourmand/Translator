@@ -3,6 +3,13 @@
  * Mirrors the logic in js/core/po.js — keep both in sync.
  */
 
+/** Normalize msgid by collapsing whitespace and trimming. */
+function normalizeMsgid(msgid: string): string {
+    return msgid
+        .trim() // Remove leading/trailing whitespace
+        .replace(/\s+/g, ' '); // Collapse multiple spaces into one
+}
+
 function parsePoStringLiteral(line: string): string {
     const match = String(line ?? "").match(/"((?:\\.|[^"\\])*)"\s*$/);
     if (!match) return "";
@@ -86,7 +93,7 @@ export interface PoSourceLine {
 export function parsePoSourceLines(text: string): PoSourceLine[] {
     return parsePoEntries(text)
         .filter((entry) => !entry.isHeader && entry.msgid.trim() !== "")
-        .map((entry, index) => ({ msgid: entry.msgid, sequence_order: index + 1 }));
+        .map((entry, index) => ({ msgid: normalizeMsgid(entry.msgid), sequence_order: index + 1 }));
 }
 
 export interface PoTranslation {
@@ -100,7 +107,7 @@ export function parsePoTranslations(text: string): PoTranslation[] {
     return parsePoEntries(text)
         .filter((entry) => !entry.isHeader && entry.msgid.trim() !== "")
         .map((entry, index) => ({
-            msgid: entry.msgid,
+            msgid: normalizeMsgid(entry.msgid),
             msgstr: entry.msgstr,
             sequence_order: index + 1,
         }));

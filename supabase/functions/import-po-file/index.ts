@@ -14,6 +14,13 @@ function jsonResponse(body: unknown, status = 200): Response {
     });
 }
 
+/** Normalize msgid by collapsing whitespace and trimming. */
+function normalizeMsgid(msgid: string): string {
+    return msgid
+        .trim() // Remove leading/trailing whitespace
+        .replace(/\s+/g, ' '); // Collapse multiple spaces into one
+}
+
 serve(async (req) => {
     if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
 
@@ -58,8 +65,9 @@ serve(async (req) => {
         // 5. Parse the PO content into msgid/msgstr pairs.
         const textContent = await fileData.text();
         const entries = parsePoTranslations(textContent);
+
         const {
-            translations: firstTranslations,
+            translations,
             skippedDuplicateMsgids,
             skippedEmpty,
         } = buildFirstNonEmptyTranslationMap(entries);
@@ -67,7 +75,7 @@ serve(async (req) => {
         // 6. Load the project's source lines from the database.
         const dbLines: any[] = [];
         let start = 0;
-        const PAGE_SIZE = 5000;
+        const PAGE_SIZE = 1000;
         while (true) {
             const { data, error: dbLinesError } = await supabaseAdmin
                 .from("lines")
@@ -88,9 +96,10 @@ serve(async (req) => {
         // Build a msgid → line ID(s) lookup map.
         const msgidMap = new Map<string, string[]>();
         for (const line of dbLines) {
-            const ids = msgidMap.get(line.msgid) ?? [];
+            const normalizedMsgid = normalizeMsgid(line.msgid);
+            const ids = msgidMap.get(normalizedMsgid) ?? [];
             ids.push(String(line.id));
-            msgidMap.set(line.msgid, ids);
+            msgidMap.set(normalizedMsgid, ids);
         }
 
         // 7. Fetch the set of line IDs that already have an approved proposal.
@@ -120,7 +129,7 @@ serve(async (req) => {
         let skippedApproved = 0;
         let skippedMissingMsgid = 0;
 
-        for (const [msgid, msgstr] of firstTranslations.entries()) {
+        for (const [msgid, msgstr] of translations.entries()) {
             const targetLineIds = msgidMap.get(msgid);
             if (!targetLineIds || targetLineIds.length === 0) {
                 skippedMissingMsgid++;

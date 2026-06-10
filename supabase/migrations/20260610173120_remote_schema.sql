@@ -13,13 +13,42 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 
-CREATE SCHEMA IF NOT EXISTS "public";
+CREATE EXTENSION IF NOT EXISTS "pg_cron" WITH SCHEMA "pg_catalog";
 
 
-ALTER SCHEMA "public" OWNER TO "pg_database_owner";
+
+
 
 
 COMMENT ON SCHEMA "public" IS 'standard public schema';
+
+
+
+CREATE EXTENSION IF NOT EXISTS "pg_stat_statements" WITH SCHEMA "extensions";
+
+
+
+
+
+
+CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA "extensions";
+
+
+
+
+
+
+CREATE EXTENSION IF NOT EXISTS "supabase_vault" WITH SCHEMA "vault";
+
+
+
+
+
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
+
+
+
 
 
 
@@ -749,10 +778,198 @@ ALTER TABLE "public"."promotion_keys" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."proposals" ENABLE ROW LEVEL SECURITY;
 
 
+
+
+ALTER PUBLICATION "supabase_realtime" OWNER TO "postgres";
+
+
+
+
+
+
+ALTER PUBLICATION "supabase_realtime" ADD TABLE ONLY "public"."lines";
+
+
+
+ALTER PUBLICATION "supabase_realtime" ADD TABLE ONLY "public"."proposals";
+
+
+
+
+
+
 GRANT USAGE ON SCHEMA "public" TO "postgres";
 GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
 GRANT USAGE ON SCHEMA "public" TO "service_role";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -816,6 +1033,27 @@ GRANT ALL ON FUNCTION "public"."rollback_import"("p_import_id" "uuid") TO "servi
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 GRANT ALL ON TABLE "public"."imports" TO "anon";
 GRANT ALL ON TABLE "public"."imports" TO "authenticated";
 GRANT ALL ON TABLE "public"."imports" TO "service_role";
@@ -852,6 +1090,12 @@ GRANT ALL ON TABLE "public"."proposals" TO "service_role";
 
 
 
+
+
+
+
+
+
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "postgres";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "authenticated";
@@ -880,6 +1124,168 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+drop extension if exists "pg_net";
+
+CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+
+  create policy "Admins can manage po-files"
+  on "storage"."objects"
+  as permissive
+  for all
+  to public
+using (((bucket_id = 'po-files'::text) AND (EXISTS ( SELECT 1
+   FROM public.profiles
+  WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text])))))))
+with check (((bucket_id = 'po-files'::text) AND (EXISTS ( SELECT 1
+   FROM public.profiles
+  WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text])))))));
+
+
+
+  create policy "Allow admin delete from po-files"
+  on "storage"."objects"
+  as permissive
+  for delete
+  to authenticated
+using (((bucket_id = 'po-files'::text) AND (( SELECT profiles.role
+   FROM public.profiles
+  WHERE (profiles.id = auth.uid())) = ANY (ARRAY['admin'::text, 'superadmin'::text]))));
+
+
+
+  create policy "Allow authenticated uploads 1e7c7qh_0"
+  on "storage"."objects"
+  as permissive
+  for insert
+  to authenticated
+with check ((bucket_id = 'po-files'::text));
+
+
+
+  create policy "Allow authenticated uploads 1e7c7qh_1"
+  on "storage"."objects"
+  as permissive
+  for select
+  to authenticated
+using ((bucket_id = 'po-files'::text));
+
+
+
+  create policy "Anyone can view avatars"
+  on "storage"."objects"
+  as permissive
+  for select
+  to public
+using ((bucket_id = 'avatars'::text));
+
+
+
+  create policy "Authenticated users can read po-files"
+  on "storage"."objects"
+  as permissive
+  for select
+  to public
+using (((bucket_id = 'po-files'::text) AND (auth.role() = 'authenticated'::text)));
+
+
+
+  create policy "Permettre l'upload d'avatars aux connectés"
+  on "storage"."objects"
+  as permissive
+  for insert
+  to authenticated
+with check ((bucket_id = 'avatars'::text));
+
+
+
+  create policy "Permettre la lecture des avatars"
+  on "storage"."objects"
+  as permissive
+  for select
+  to authenticated
+using ((bucket_id = 'avatars'::text));
+
+
+
+  create policy "Permettre la modification des avatars"
+  on "storage"."objects"
+  as permissive
+  for update
+  to authenticated
+using ((bucket_id = 'avatars'::text));
+
+
+
+  create policy "Permettre la suppression des avatars"
+  on "storage"."objects"
+  as permissive
+  for delete
+  to authenticated
+using ((bucket_id = 'avatars'::text));
+
+
+
+  create policy "Users can read own po-files"
+  on "storage"."objects"
+  as permissive
+  for select
+  to public
+using (((bucket_id = 'po-files'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text)));
+
+
+
+  create policy "Users can update own avatar"
+  on "storage"."objects"
+  as permissive
+  for update
+  to public
+using (((bucket_id = 'avatars'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text)));
+
+
+
+  create policy "Users can upload own avatar"
+  on "storage"."objects"
+  as permissive
+  for insert
+  to public
+with check (((bucket_id = 'avatars'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text)));
+
+
+
+  create policy "Users can upload po-files to own folder"
+  on "storage"."objects"
+  as permissive
+  for insert
+  to public
+with check (((bucket_id = 'po-files'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text)));
 
 
 
