@@ -1,11 +1,9 @@
 -- =============================================================================
 -- TranslatorWeb — Complete Database Schema (Idempotent)
 -- =============================================================================
--- All statements are safe to re-run on an existing database.
--- =============================================================================
 
 -- ---------------------------------------------------------------------------
--- 1. TABLES
+-- 1. TABLES (UUID-based)
 -- ---------------------------------------------------------------------------
 
 create table if not exists public.profiles (
@@ -22,6 +20,7 @@ create table if not exists public.projects (
     id              uuid primary key default gen_random_uuid(),
     name            text not null default '',
     source_language text not null default 'EN',
+    po_storage_path text,
     created_at      timestamptz not null default now()
 );
 
@@ -35,13 +34,23 @@ create table if not exists public.lines (
 );
 
 create table if not exists public.imports (
-    id         uuid primary key default gen_random_uuid(),
-    project_id uuid not null references public.projects(id) on delete cascade,
-    user_id    uuid not null references auth.users(id) on delete cascade,
-    file_name  text not null default '',
-    language   text not null default '',
-    created_at timestamptz not null default now()
+    id           uuid primary key default gen_random_uuid(),
+    project_id   uuid not null references public.projects(id) on delete cascade,
+    user_id      uuid not null references auth.users(id) on delete cascade,
+    file_name    text not null default '',
+    language     text not null default '',
+    storage_path text,
+    is_variant   boolean not null default false,
+    created_at   timestamptz not null default now()
 );
+
+alter table public.imports
+    add column if not exists total_entries integer not null default 0,
+    add column if not exists imported_count integer not null default 0,
+    add column if not exists skipped_approved_count integer not null default 0,
+    add column if not exists skipped_duplicate_msgid_count integer not null default 0,
+    add column if not exists skipped_missing_msgid_count integer not null default 0,
+    add column if not exists skipped_empty_count integer not null default 0;
 
 create table if not exists public.proposals (
     id         uuid primary key default gen_random_uuid(),
@@ -60,12 +69,11 @@ create table if not exists public.promotion_keys (
     code           text not null unique,
     role_to_grant  text not null check (role_to_grant in ('reviewer', 'admin')),
     created_by     uuid not null references auth.users(id) on delete cascade,
+    redeemed_by    uuid references auth.users(id) on delete set null,
+    redeemed_at    timestamptz,
+    is_used        boolean not null default false,
     created_at     timestamptz not null default now()
 );
-
--- Add columns that may be missing on an existing promotion_keys table
-alter table public.promotion_keys add column if not exists redeemed_by uuid references auth.users(id) on delete set null;
-alter table public.promotion_keys add column if not exists redeemed_at timestamptz;
 
 -- ---------------------------------------------------------------------------
 -- 2. INDEXES
@@ -73,10 +81,13 @@ alter table public.promotion_keys add column if not exists redeemed_at timestamp
 
 create index if not exists idx_lines_project_id on public.lines(project_id);
 create index if not exists idx_lines_project_sequence on public.lines(project_id, sequence_order);
+create index if not exists idx_lines_project_msgid on public.lines(project_id, msgid);
 create index if not exists idx_imports_project_id on public.imports(project_id);
+create index if not exists idx_imports_project_created_at on public.imports(project_id, created_at desc);
 create index if not exists idx_proposals_line_id on public.proposals(line_id);
 create index if not exists idx_proposals_line_language on public.proposals(line_id, language);
 create index if not exists idx_proposals_import_id on public.proposals(import_id);
+create index if not exists idx_proposals_language_status_line on public.proposals(language, status, line_id);
 
 -- ---------------------------------------------------------------------------
 -- 3. TRIGGER: auto-create profile on new auth.users signup
@@ -111,14 +122,63 @@ create trigger on_auth_user_created
 -- 4. RPC FUNCTIONS
 -- ---------------------------------------------------------------------------
 
+create or replace function public.is_admin_or_service()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+    select
+        auth.role() = 'service_role'
+        or exists (
+            select 1
+            from public.profiles
+            where id = auth.uid()
+              and role in ('admin', 'superadmin')
+        );
+$$;
+
 create or replace function public.rollback_import(p_import_id uuid)
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+    v_line_ids uuid[];
+    v_language text;
+    v_project_id uuid;
 begin
+    if not public.is_admin_or_service() then
+        raise exception 'Forbidden: insufficient privileges';
+    end if;
+
+    -- Get affected lines and language/project
+    select array_agg(distinct line_id), max(language), max(project_id)
+    into v_line_ids, v_language, v_project_id
+    from public.proposals p
+    join public.lines l on l.id = p.line_id
+    where p.import_id = p_import_id;
+
+    -- Delete proposals from the import
     delete from public.proposals where import_id = p_import_id;
+
+    -- Unlock language for lines that no longer have approved proposals
+    if v_line_ids is not null then
+        update public.lines l
+        set locked_languages = array_remove(locked_languages, v_language)
+        where id = any(v_line_ids)
+          and project_id = v_project_id
+          and not exists (
+              select 1 from public.proposals p
+              where p.line_id = l.id
+                and p.language = v_language
+                and p.status = 'approved'
+          );
+    end if;
+
+    -- Delete the import record
     delete from public.imports where id = p_import_id;
 end;
 $$;
@@ -224,6 +284,7 @@ begin
     from public.promotion_keys
     where code = token_code
       and redeemed_by is null
+      and is_used = false
     for update;
 
     if v_key is null then
@@ -232,8 +293,9 @@ begin
 
     update public.promotion_keys
     set redeemed_by = auth.uid(),
-        redeemed_at = now()
-    where id = v_key.id;
+        redeemed_at = now(),
+        is_used = true
+    where code = token_code;
 
     update public.profiles
     set role = v_key.role_to_grant,
@@ -256,11 +318,42 @@ security definer
 set search_path = ''
 as $$
 begin
+    if not public.is_admin_or_service() then
+        raise exception 'Forbidden: insufficient privileges';
+    end if;
+
     update public.lines
     set locked_languages = array_append(locked_languages, p_language)
     where id = any(p_line_ids)
       and project_id = p_project_id
       and not (locked_languages @> array[p_language]);
+end;
+$$;
+
+create or replace function public.delete_project_cleanup(p_project_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+    if not public.is_admin_or_service() then
+        raise exception 'Forbidden: insufficient privileges';
+    end if;
+
+    -- 1. Supprimer tous les fichiers associés au projet dans le bucket storage.objects
+    delete from storage.objects
+    where bucket_id = 'po-files'
+      and name like 'projects/' || p_project_id || '/%';
+
+    -- 2. Supprimer le projet (cascade va supprimer lines, imports, proposals)
+    delete from public.projects
+    where id = p_project_id;
+
+    -- 3. Si plus aucun projet n'existe, on reset les compteurs / nettoie le stockage
+    if not exists (select 1 from public.projects) then
+        delete from storage.objects where bucket_id = 'po-files';
+    end if;
 end;
 $$;
 
@@ -280,6 +373,7 @@ drop policy if exists "Users can view all profiles" on public.profiles;
 drop policy if exists "Users can update own profile" on public.profiles;
 drop policy if exists "Everyone can view projects" on public.projects;
 drop policy if exists "Admins can insert projects" on public.projects;
+drop policy if exists "Admins can update projects" on public.projects;
 drop policy if exists "Admins can delete projects" on public.projects;
 drop policy if exists "Everyone can view lines" on public.lines;
 drop policy if exists "Admins can insert lines" on public.lines;
@@ -290,6 +384,7 @@ drop policy if exists "Users can update own pending proposals" on public.proposa
 drop policy if exists "Users can delete own pending proposals" on public.proposals;
 drop policy if exists "Everyone can view imports" on public.imports;
 drop policy if exists "Admins can insert imports" on public.imports;
+drop policy if exists "Admins can update imports" on public.imports;
 drop policy if exists "Admins can delete imports" on public.imports;
 drop policy if exists "Admins can manage promotion keys" on public.promotion_keys;
 drop policy if exists "Users can view their redeemed keys" on public.promotion_keys;
@@ -311,6 +406,21 @@ create policy "Everyone can view projects"
 
 create policy "Admins can insert projects"
     on public.projects for insert
+    with check (
+        exists (
+            select 1 from public.profiles
+            where id = auth.uid() and role in ('admin', 'superadmin')
+        )
+    );
+
+create policy "Admins can update projects"
+    on public.projects for update
+    using (
+        exists (
+            select 1 from public.profiles
+            where id = auth.uid() and role in ('admin', 'superadmin')
+        )
+    )
     with check (
         exists (
             select 1 from public.profiles
@@ -393,6 +503,21 @@ create policy "Admins can insert imports"
         )
     );
 
+create policy "Admins can update imports"
+    on public.imports for update
+    using (
+        exists (
+            select 1 from public.profiles
+            where id = auth.uid() and role in ('admin', 'superadmin')
+        )
+    )
+    with check (
+        exists (
+            select 1 from public.profiles
+            where id = auth.uid() and role in ('admin', 'superadmin')
+        )
+    );
+
 create policy "Admins can delete imports"
     on public.imports for delete
     using (
@@ -417,7 +542,7 @@ create policy "Users can view their redeemed keys"
     using (redeemed_by = auth.uid());
 
 -- ---------------------------------------------------------------------------
--- 6. STORAGE BUCKETS
+-- 6. STORAGE BUCKETS AND OBJECT POLICIES
 -- ---------------------------------------------------------------------------
 
 insert into storage.buckets (id, name, public)
@@ -429,24 +554,34 @@ values ('avatars', 'avatars', true)
 on conflict (id) do nothing;
 
 -- Drop storage policies first to make this idempotent
-drop policy if exists "Users can upload po-files to own folder" on storage.objects;
-drop policy if exists "Users can read own po-files" on storage.objects;
+drop policy if exists "Admins can manage po-files" on storage.objects;
+drop policy if exists "Authenticated users can read po-files" on storage.objects;
 drop policy if exists "Anyone can view avatars" on storage.objects;
 drop policy if exists "Users can upload own avatar" on storage.objects;
 drop policy if exists "Users can update own avatar" on storage.objects;
 
-create policy "Users can upload po-files to own folder"
-    on storage.objects for insert
+create policy "Admins can manage po-files"
+    on storage.objects for all
+    using (
+        bucket_id = 'po-files'
+        and exists (
+            select 1 from public.profiles
+            where id = auth.uid() and role in ('admin', 'superadmin')
+        )
+    )
     with check (
         bucket_id = 'po-files'
-        and (storage.foldername(name))[1] = auth.uid()::text
+        and exists (
+            select 1 from public.profiles
+            where id = auth.uid() and role in ('admin', 'superadmin')
+        )
     );
 
-create policy "Users can read own po-files"
+create policy "Authenticated users can read po-files"
     on storage.objects for select
     using (
         bucket_id = 'po-files'
-        and (storage.foldername(name))[1] = auth.uid()::text
+        and auth.role() = 'authenticated'
     );
 
 create policy "Anyone can view avatars"

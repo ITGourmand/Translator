@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { parsePoTranslations } from "../_shared/po-parser.ts";
+import { buildFirstNonEmptyTranslationMap, parsePoTranslations } from "../_shared/po-parser.ts";
 
 const CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
@@ -58,15 +58,31 @@ serve(async (req) => {
         // 5. Parse the PO content into msgid/msgstr pairs.
         const textContent = await fileData.text();
         const entries = parsePoTranslations(textContent);
+        const {
+            translations: firstTranslations,
+            skippedDuplicateMsgids,
+            skippedEmpty,
+        } = buildFirstNonEmptyTranslationMap(entries);
 
         // 6. Load the project's source lines from the database.
-        const { data: dbLines, error: dbLinesError } = await supabaseAdmin
-            .from("lines")
-            .select("id, msgid")
-            .eq("project_id", projectId);
+        const dbLines: any[] = [];
+        let start = 0;
+        const PAGE_SIZE = 5000;
+        while (true) {
+            const { data, error: dbLinesError } = await supabaseAdmin
+                .from("lines")
+                .select("id, msgid")
+                .eq("project_id", projectId)
+                .order("sequence_order", { ascending: true })
+                .range(start, start + PAGE_SIZE - 1);
 
-        if (dbLinesError || !dbLines) {
-            throw new Error(`Failed to fetch project lines: ${dbLinesError?.message}`);
+            if (dbLinesError) {
+                throw new Error(`Failed to fetch project lines: ${dbLinesError.message}`);
+            }
+            if (!data || data.length === 0) break;
+            dbLines.push(...data);
+            if (data.length < PAGE_SIZE) break;
+            start += PAGE_SIZE;
         }
 
         // Build a msgid → line ID(s) lookup map.
@@ -78,34 +94,38 @@ serve(async (req) => {
         }
 
         // 7. Fetch the set of line IDs that already have an approved proposal.
-        const dbLineIds = dbLines.map((line) => line.id);
         const approvedLineIds = new Set<string>();
-
-        if (dbLineIds.length > 0) {
+        let startProp = 0;
+        while (true) {
             const { data: approvedProposals, error: approvedError } = await supabaseAdmin
                 .from("proposals")
-                .select("line_id")
+                .select("line_id, lines!inner(project_id)")
                 .eq("language", language)
                 .eq("status", "approved")
-                .in("line_id", dbLineIds);
+                .eq("lines.project_id", projectId)
+                .range(startProp, startProp + PAGE_SIZE - 1);
 
             if (approvedError) {
                 throw new Error(`Failed to fetch approved proposals: ${approvedError.message}`);
             }
-            approvedProposals?.forEach((prop) => approvedLineIds.add(String(prop.line_id)));
+            if (!approvedProposals || approvedProposals.length === 0) break;
+            approvedProposals.forEach((prop) => approvedLineIds.add(String(prop.line_id)));
+            if (approvedProposals.length < PAGE_SIZE) break;
+            startProp += PAGE_SIZE;
         }
 
-        // 8. Build the list of proposals to insert, skipping empty and already-approved lines.
+        // 8. Build the list of proposals to insert, skipping unmatched and already-approved lines.
         const proposalsToInsert: object[] = [];
         const lineIdsToPropagate: string[] = [];
         let skippedApproved = 0;
+        let skippedMissingMsgid = 0;
 
-        for (const entry of entries) {
-            const cleanMsgstr = entry.msgstr.trim();
-            if (!cleanMsgstr) continue; // Skip untranslated entries.
-
-            const targetLineIds = msgidMap.get(entry.msgid);
-            if (!targetLineIds || targetLineIds.length === 0) continue; // No matching source line.
+        for (const [msgid, msgstr] of firstTranslations.entries()) {
+            const targetLineIds = msgidMap.get(msgid);
+            if (!targetLineIds || targetLineIds.length === 0) {
+                skippedMissingMsgid++;
+                continue;
+            }
 
             for (const lineId of targetLineIds) {
                 if (approvedLineIds.has(lineId)) {
@@ -114,12 +134,12 @@ serve(async (req) => {
                 }
 
                 proposalsToInsert.push({
-                    line_id: Number(lineId),
+                    line_id: lineId,
                     user_id: user.id,
-                    msgstr: entry.msgstr,
+                    msgstr,
                     language,
                     status: "approved",
-                    import_id: Number(importId),
+                    import_id: importId,
                 });
                 approvedLineIds.add(lineId);
                 lineIdsToPropagate.push(lineId);
@@ -137,16 +157,40 @@ serve(async (req) => {
 
             // 10. Propagate and lock lines in bulk via database function.
             const { error: propagateError } = await supabaseAdmin.rpc("propagate_bulk_import_by_lines", {
-                p_project_id: Number(projectId),
-                p_import_id: Number(importId),
-                p_line_ids: lineIdsToPropagate.map(Number),
+                p_project_id: projectId,
+                p_import_id: importId,
+                p_line_ids: lineIdsToPropagate,
                 p_language: language,
             });
 
             if (propagateError) throw new Error(`Proposal propagation failed: ${propagateError.message}`);
         }
 
-        return jsonResponse({ success: true, totalImported: proposalsToInsert.length, skippedApproved });
+        const stats = {
+            totalEntries: entries.length,
+            totalImported: proposalsToInsert.length,
+            skippedApproved,
+            skippedDuplicateMsgids,
+            skippedMissingMsgid,
+            skippedEmpty,
+        };
+
+        const { error: updateStatsError } = await supabaseAdmin
+            .from("imports")
+            .update({
+                total_entries: stats.totalEntries,
+                imported_count: stats.totalImported,
+                skipped_approved_count: stats.skippedApproved,
+                skipped_duplicate_msgid_count: stats.skippedDuplicateMsgids,
+                skipped_missing_msgid_count: stats.skippedMissingMsgid,
+                skipped_empty_count: stats.skippedEmpty,
+            })
+            .eq("id", importId)
+            .eq("project_id", projectId);
+
+        if (updateStatsError) throw new Error(`Import stats update failed: ${updateStatsError.message}`);
+
+        return jsonResponse({ success: true, ...stats });
     } catch (err) {
         console.error("[import-po-file] Error:", err.message);
         return jsonResponse({ error: err.message }, 400);

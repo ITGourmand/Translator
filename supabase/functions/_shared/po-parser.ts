@@ -105,3 +105,31 @@ export function parsePoTranslations(text: string): PoTranslation[] {
             sequence_order: index + 1,
         }));
 }
+
+export interface FirstTranslationMapResult {
+    translations: Map<string, string>;
+    skippedDuplicateMsgids: number;
+    skippedEmpty: number;
+}
+
+export function buildFirstNonEmptyTranslationMap(entries: PoTranslation[]): FirstTranslationMapResult {
+    const translations = new Map<string, string>();
+    let skippedDuplicateMsgids = 0;
+    let skippedEmpty = 0;
+
+    for (const entry of entries) {
+        if (!entry.msgstr.trim()) {
+            skippedEmpty++;
+            continue;
+        }
+
+        if (translations.has(entry.msgid)) {
+            skippedDuplicateMsgids++;
+            continue;
+        }
+
+        translations.set(entry.msgid, entry.msgstr);
+    }
+
+    return { translations, skippedDuplicateMsgids, skippedEmpty };
+}

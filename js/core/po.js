@@ -97,62 +97,96 @@ export function parsePoTranslations(text) {
         }));
 }
 
-export function replacePoMsgstrs(sourceText, orderedTranslations) {
+export function buildFirstNonEmptyTranslationMap(entries) {
+    const translations = new Map();
+    let skippedDuplicateMsgids = 0;
+    let skippedEmpty = 0;
+
+    for (const entry of entries || []) {
+        const msgid = String(entry?.msgid || "");
+        const msgstr = String(entry?.msgstr || "");
+        if (!msgstr.trim()) {
+            skippedEmpty++;
+            continue;
+        }
+
+        if (translations.has(msgid)) {
+            skippedDuplicateMsgids++;
+            continue;
+        }
+
+        translations.set(msgid, msgstr);
+    }
+
+    return { translations, skippedDuplicateMsgids, skippedEmpty };
+}
+
+export function replacePoMsgstrs(sourceText, translations) {
     const sourceLines = String(sourceText || "").split(/\r?\n/);
     const resultLines = [];
+
+    let currentMsgid = "";
+    let inMsgid = false;
+    let inMsgstr = false;
+    let currentMsgstrLines = [];
     let translationIndex = 0;
-    let index = 0;
 
-    while (index < sourceLines.length) {
-        const line = sourceLines[index];
+    const flushMsgstr = () => {
+        if (!inMsgstr) return;
 
-        if (!line.startsWith("msgid ")) {
+        const isHeader = currentMsgid === "";
+        let approvedTranslation = null;
+
+        if (!isHeader) {
+            if (Array.isArray(translations)) {
+                approvedTranslation = translations[translationIndex];
+                translationIndex++;
+            } else if (translations instanceof Map) {
+                approvedTranslation = translations.get(currentMsgid);
+            } else if (translations && typeof translations === "object") {
+                approvedTranslation = translations[currentMsgid];
+            }
+        }
+
+        if (approvedTranslation !== undefined && approvedTranslation !== null && approvedTranslation !== "") {
+            resultLines.push(`msgstr "${escapePoString(approvedTranslation)}"`);
+        } else {
+            resultLines.push(...currentMsgstrLines);
+        }
+
+        currentMsgstrLines = [];
+        inMsgstr = false;
+    };
+
+    for (let i = 0; i < sourceLines.length; i++) {
+        const line = sourceLines[i];
+        const trimmed = line.trim();
+
+        if (trimmed.startsWith("msgid ")) {
+            flushMsgstr();
+            inMsgid = true;
+            currentMsgid = parsePoStringLiteral(trimmed);
             resultLines.push(line);
-            index += 1;
-            continue;
-        }
-
-        const msgidLines = [line];
-        let rawMsgid = parsePoStringLiteral(line);
-        index += 1;
-
-        while (index < sourceLines.length && sourceLines[index].startsWith("\"")) {
-            msgidLines.push(sourceLines[index]);
-            rawMsgid += parsePoStringLiteral(sourceLines[index]);
-            index += 1;
-        }
-
-        resultLines.push(...msgidLines);
-        const isHeader = rawMsgid === "";
-
-        while (index < sourceLines.length && !sourceLines[index].startsWith("msgstr")) {
-            resultLines.push(sourceLines[index]);
-            index += 1;
-        }
-
-        if (index >= sourceLines.length) continue;
-
-        if (isHeader) {
-            resultLines.push(sourceLines[index]);
-            index += 1;
-            while (index < sourceLines.length && sourceLines[index].startsWith("\"")) {
-                resultLines.push(sourceLines[index]);
-                index += 1;
+        } else if (trimmed.startsWith("msgstr")) {
+            inMsgid = false;
+            inMsgstr = true;
+            currentMsgstrLines.push(line);
+        } else if (trimmed.startsWith('"')) {
+            if (inMsgid) {
+                currentMsgid += parsePoStringLiteral(trimmed);
+                resultLines.push(line);
+            } else if (inMsgstr) {
+                currentMsgstrLines.push(line);
+            } else {
+                resultLines.push(line);
             }
-            continue;
+        } else {
+            flushMsgstr();
+            resultLines.push(line);
         }
-
-        while (index < sourceLines.length && sourceLines[index].startsWith("msgstr")) {
-            index += 1;
-            while (index < sourceLines.length && sourceLines[index].startsWith("\"")) {
-                index += 1;
-            }
-        }
-
-        const approvedText = orderedTranslations[translationIndex] ?? "";
-        translationIndex += 1;
-        resultLines.push(`msgstr "${escapePoString(approvedText)}"`);
     }
+
+    flushMsgstr();
 
     return resultLines.join("\n");
 }

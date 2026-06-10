@@ -21,7 +21,6 @@ import {
     normalizeLanguage,
     requireRecordId,
     sanitizeFileBaseName,
-    storageSafeExtension,
     validatePoFile,
 } from "../core/validation.js";
 
@@ -219,6 +218,14 @@ function renderImportItem(importRow) {
         hour: "2-digit",
         minute: "2-digit",
     });
+    const stats = [
+        `entries ${importRow.total_entries || 0}`,
+        `imported ${importRow.imported_count || 0}`,
+        `approved skips ${importRow.skipped_approved_count || 0}`,
+        `duplicate skips ${importRow.skipped_duplicate_msgid_count || 0}`,
+        `missing skips ${importRow.skipped_missing_msgid_count || 0}`,
+        `empty skips ${importRow.skipped_empty_count || 0}`,
+    ].join(" · ");
 
     return createElement("div", {
         className: "flex justify-between items-center bg-stone-50 p-2.5 rounded-xl border border-stone-200/60 shadow-2xs",
@@ -227,6 +234,7 @@ function renderImportItem(importRow) {
             createElement("span", { className: "font-bold text-stone-700", text: importRow.file_name || "Unknown file" }),
             document.createTextNode(" "),
             createElement("span", { className: "text-stone-400 text-[11px] font-medium", text: `(${importRow.language}) - Ingested on ${date}` }),
+            createElement("div", { className: "text-stone-500 text-[10px] mt-1", text: stats }),
         ]),
         createElement("button", {
             type: "button",
@@ -262,15 +270,18 @@ async function handleRollbackImport(importId) {
     if (!confirmRollback) return;
 
     showToast("Reversing", "Purging batch translations...", "info");
-    const { error } = await supabaseClient.rpc("rollback_import", { p_import_id: id });
 
-    if (error) {
+    try {
+        const { error } = await supabaseClient.functions.invoke("rollback-import", {
+            body: { importId: id },
+        });
+        if (error) throw error;
+
+        showToast("Success", "Import batch purged successfully.", "success");
+        await fetchImportHistory(byId("import-project-id").value);
+    } catch (error) {
         showToast("Rollback Failed", error.message, "error");
-        return;
     }
-
-    showToast("Success", "Import batch purged successfully.", "success");
-    await fetchImportHistory(byId("import-project-id").value);
 }
 
 async function handleImportPo(event) {
@@ -281,6 +292,7 @@ async function handleImportPo(event) {
     const fileInput = byId("import-file-input");
     const file = validatePoFile(fileInput.files?.[0]);
     let importRow = null;
+    let filePath = "";
 
     setButtonBusy(submitBtn, true, "Merge Translation Matrix", "Registering import...");
 
@@ -292,6 +304,7 @@ async function handleImportPo(event) {
                 user_id: currentUser.id,
                 file_name: file.name,
                 language: targetLang,
+                is_variant: true
             })
             .select()
             .single();
@@ -300,10 +313,17 @@ async function handleImportPo(event) {
         importRow = data;
 
         setButtonBusy(submitBtn, true, "Merge Translation Matrix", "Uploading .po file...");
-        const filePath = `${currentUser.id}/imports/${projectId}_${importRow.id}_${Date.now()}.${storageSafeExtension(file.name)}`;
+        filePath = `projects/${projectId}/variants/${importRow.id}.po`;
 
         const { error: uploadError } = await supabaseClient.storage.from("po-files").upload(filePath, file);
         if (uploadError) throw uploadError;
+
+        // update import with storage path
+        const { error: updateError } = await supabaseClient
+            .from("imports")
+            .update({ storage_path: filePath })
+            .eq("id", importRow.id);
+        if (updateError) throw updateError;
 
         setButtonBusy(submitBtn, true, "Merge Translation Matrix", "Merging translations...");
         const { data: functionData, error: functionError } = await supabaseClient.functions.invoke("import-po-file", {
@@ -314,7 +334,7 @@ async function handleImportPo(event) {
 
         showToast(
             "Success",
-            `Variant matched. Imported ${functionData.totalImported} translations; skipped ${functionData.skippedApproved || 0} already-approved lines.`,
+            `Variant matched. Imported ${functionData.totalImported} translations; skipped ${functionData.skippedApproved || 0} approved, ${functionData.skippedDuplicateMsgids || 0} duplicate msgids.`,
             "success",
         );
         fileInput.value = "";
@@ -322,7 +342,14 @@ async function handleImportPo(event) {
     } catch (error) {
         showToast("Import Failed", error.message, "error");
         if (importRow?.id) {
-            await supabaseClient.from("imports").delete().eq("id", importRow.id);
+            const { error: rollbackError } = await supabaseClient.functions.invoke("rollback-import", {
+                body: { importId: importRow.id },
+            });
+            if (rollbackError && filePath) {
+                await supabaseClient.storage.from("po-files").remove([filePath]);
+            }
+        } else if (filePath) {
+            await supabaseClient.storage.from("po-files").remove([filePath]);
         }
     } finally {
         setButtonBusy(submitBtn, false, "Merge Translation Matrix");
@@ -336,7 +363,9 @@ async function handleDeleteProject(projectId) {
 
     showToast("Processing", "Deleting project...", "info");
 
-    const { error } = await supabaseClient.from("projects").delete().eq("id", id);
+    const { error } = await supabaseClient.functions.invoke("delete-project", {
+        body: { projectId: id },
+    });
     if (error) {
         showToast("Deletion Failed", error.message, "error");
         return;
@@ -346,54 +375,67 @@ async function handleDeleteProject(projectId) {
     await fetchAndRenderProjects();
 }
 
-async function fetchApprovedProposalsForLines(lineIds, targetLanguage) {
-    const approvedProposals = [];
-    const chunkSize = 500;
-
-    for (let index = 0; index < lineIds.length; index += chunkSize) {
-        const chunk = lineIds.slice(index, index + chunkSize);
-        const { data, error } = await supabaseClient
-            .from("proposals")
-            .select("line_id, msgstr")
-            .eq("language", targetLanguage)
-            .eq("status", "approved")
-            .in("line_id", chunk);
-
-        if (error) throw error;
-        approvedProposals.push(...(data || []));
-    }
-
-    return approvedProposals;
-}
-
 async function downloadTranslatedPoFile(projectId, projectName, targetLanguage) {
     const id = requireRecordId(projectId, "Project id");
     const language = assertAllowedLanguage(targetLanguage);
     showToast("Exporting", "Fetching source .po template and compiling translations...", "info");
 
     try {
-        const { data: lines, error: linesError } = await supabaseClient
-            .from("lines")
-            .select("id, msgid, sequence_order")
-            .eq("project_id", id)
-            .order("sequence_order", { ascending: true });
+        const { data: projectData, error: projectError } = await supabaseClient
+            .from("projects")
+            .select("po_storage_path")
+            .eq("id", id)
+            .single();
+        if (projectError || !projectData || !projectData.po_storage_path) {
+            throw new Error("Could not find the project's original PO file path.");
+        }
 
-        if (linesError) throw linesError;
+        let lines = [];
+        let start = 0;
+        const PAGE_SIZE = 5000;
+        while (true) {
+            const { data, error: linesError } = await supabaseClient
+                .from("lines")
+                .select("id, msgid, sequence_order")
+                .eq("project_id", id)
+                .order("sequence_order", { ascending: true })
+                .range(start, start + PAGE_SIZE - 1);
+            if (linesError) throw linesError;
+            if (!data || data.length === 0) break;
+            lines = lines.concat(data);
+            if (data.length < PAGE_SIZE) break;
+            start += PAGE_SIZE;
+        }
+
         if (!lines || lines.length === 0) throw new Error("This project has no source lines to export.");
 
-        const approvedProposals = await fetchApprovedProposalsForLines(lines.map((line) => line.id), language);
+        let approvedProposals = [];
+        let startProp = 0;
+        while (true) {
+            const { data, error: approvedError } = await supabaseClient
+                .from("proposals")
+                .select("line_id, msgstr, lines!inner(project_id)")
+                .eq("language", language)
+                .eq("status", "approved")
+                .eq("lines.project_id", id)
+                .range(startProp, startProp + PAGE_SIZE - 1);
+            if (approvedError) throw approvedError;
+            if (!data || data.length === 0) break;
+            approvedProposals = approvedProposals.concat(data);
+            if (data.length < PAGE_SIZE) break;
+            startProp += PAGE_SIZE;
+        }
+
         const translationMap = new Map(approvedProposals.map((proposal) => [String(proposal.line_id), proposal.msgstr || ""]));
-        const orderedTranslations = lines.map((line) => translationMap.get(String(line.id)) || "");
-
-        const { data: files, error: listError } = await supabaseClient.storage.from("po-files").list(currentUser.id);
-        if (listError || !files) throw listError || new Error("Could not list storage files.");
-
-        const targetFile = files.find((file) => file.name.startsWith(`${id}_`) && /\.po$/i.test(file.name));
-        if (!targetFile) throw new Error("Original template file could not be found in storage.");
+        const orderedTranslations = [];
+        for (const line of lines) {
+            const approvedText = translationMap.get(String(line.id));
+            orderedTranslations.push(approvedText || "");
+        }
 
         const { data: blob, error: downloadError } = await supabaseClient.storage
             .from("po-files")
-            .download(`${currentUser.id}/${targetFile.name}`);
+            .download(projectData.po_storage_path);
 
         if (downloadError) throw downloadError;
 
@@ -435,6 +477,8 @@ async function handleCreateProject(event) {
     const file = validatePoFile(fileInput.files?.[0]);
     const projectName = projectNameInput.value.trim();
     const sourceLanguage = assertAllowedLanguage(byId("project-source-lang").value);
+    let createdProject = null;
+    let filePath = "";
 
     if (!projectName) {
         showToast("Validation Error", "Project name is required.", "error");
@@ -451,12 +495,20 @@ async function handleCreateProject(event) {
             .single();
 
         if (projectError || !project) throw projectError || new Error("Project could not be created.");
+        createdProject = project;
 
         setButtonBusy(submitBtn, true, "Ingest & Create Project", "Uploading .po file...");
-        const filePath = `${currentUser.id}/${project.id}_${Date.now()}.${storageSafeExtension(file.name)}`;
+        filePath = `projects/${project.id}/source.po`;
 
         const { error: uploadError } = await supabaseClient.storage.from("po-files").upload(filePath, file);
         if (uploadError) throw uploadError;
+
+        // update project to store the po_storage_path
+        const { error: updateError } = await supabaseClient
+            .from("projects")
+            .update({ po_storage_path: filePath })
+            .eq("id", project.id);
+        if (updateError) throw updateError;
 
         setButtonBusy(submitBtn, true, "Ingest & Create Project", "Parsing .po file...");
         const { data: functionData, error: functionError } = await supabaseClient.functions.invoke("parse-po-file", {
@@ -471,6 +523,13 @@ async function handleCreateProject(event) {
         await fetchAndRenderProjects();
     } catch (error) {
         showToast("Project Creation Failed", error.message, "error");
+        if (createdProject?.id) {
+            await supabaseClient.functions.invoke("delete-project", {
+                body: { projectId: createdProject.id },
+            });
+        } else if (filePath) {
+            await supabaseClient.storage.from("po-files").remove([filePath]);
+        }
     } finally {
         setButtonBusy(submitBtn, false, "Ingest & Create Project");
     }
