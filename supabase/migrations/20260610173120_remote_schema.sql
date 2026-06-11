@@ -95,7 +95,7 @@ begin
         raise exception 'Invalid role: %', p_role_to_grant;
     end if;
 
-    v_code := encode(gen_random_bytes(16), 'hex');
+    v_code := encode(extensions.gen_random_bytes(16), 'hex');
 
     insert into public.promotion_keys (code, role_to_grant, created_by)
     values (v_code, p_role_to_grant, auth.uid());
