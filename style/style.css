@@ -8,7 +8,7 @@
 
 /* 40% Opacity and scale down for peripheral contexts */
 .line-card-context {
-    opacity: 0.45;
+    opacity: 0.9;
     transform: scale(0.97);
     pointer-events: none;
     user-select: none;

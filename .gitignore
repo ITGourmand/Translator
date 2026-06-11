@@ -6,6 +6,7 @@ build/
 .cache/
 supabase/.temp/
 supabase/
+supabase/*
 
 # Production database dumps — never commit to version control
 supabase_prod_dump.sql
