@@ -392,7 +392,7 @@ async function downloadTranslatedPoFile(projectId, projectName, targetLanguage) 
 
         let lines = [];
         let start = 0;
-        const PAGE_SIZE = 5000;
+        const PAGE_SIZE = 1000;
         while (true) {
             const { data, error: linesError } = await supabaseClient
                 .from("lines")
